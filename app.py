@@ -148,7 +148,7 @@ async def new_story_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
     if scenario_text:
         scenario = story_service.create_scenario(
             story,
-            text=scenario
+            text=scenario_text
         )
     elif scenario_obj:
         scenario = scenario_obj
