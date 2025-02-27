@@ -1,0 +1,6 @@
+venv
+.vscode
+check
+.env
+__pycache__
+ble.db
