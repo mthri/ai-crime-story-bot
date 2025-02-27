@@ -56,7 +56,7 @@ async def send_story_section(update: Update, context: ContextTypes.DEFAULT_TYPE,
         action='typing'
     )
     story_service.mark_section_as_used(section)
-    section, ai_response = story_service.create_section(section.story, choice)
+    section, ai_response = await story_service.create_section(section.story, choice)
 
     if not ai_response.is_end:
         reply_markup = generate_choice_button(section, ai_response)
@@ -80,7 +80,7 @@ async def send_story_section(update: Update, context: ContextTypes.DEFAULT_TYPE,
     )
 
 async def send_ai_generated_scenario(update: Update) -> None:
-    scenarios = story_service.get_unused_scenarios()
+    scenarios = await story_service.get_unused_scenarios()
     keyboard = []
     text = ''
     for index, scenario in enumerate(scenarios, start=1):
@@ -167,7 +167,7 @@ async def new_story_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
         action='typing'
     )
     
-    section, ai_response = story_service.start_story(story, scenario)
+    section, ai_response = await story_service.start_story(story, scenario)
     reply_markup = generate_choice_button(section, ai_response)
     text = STORY_TEXT_FORMAT.format(
         title=ai_response.title,
@@ -225,7 +225,8 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     btype, *data = query_data.split(':')
     
     if btype == ButtonType.OPTION.value:
-        section = story_service.get_section(int(data[0]))
+        # for ignore user to use old section response
+        section = await story_service.get_unused_section(int(data[0]))
         if not section:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,

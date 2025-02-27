@@ -53,13 +53,13 @@ class StoryService:
         story.is_end = True
         story.save()
     
-    def start_story(self, story: Story, story_scenario: StoryScenario) -> tuple[Section,AIStoryResponse]:
+    async def start_story(self, story: Story, story_scenario: StoryScenario) -> tuple[Section,AIStoryResponse]:
         scenario = f'توصیف سناریو اولیه:\n{story_scenario.text}'
         messages = [
             {'role': 'system','content': STORY_PROMPT%(3,3)},
             {'role': 'user','content': scenario}
         ]
-        content = llm(messages)
+        content = await llm(messages)
         ai_response = story_parser(content)
         
         story_scenario.story = story
@@ -90,9 +90,10 @@ class StoryService:
             is_system=False
         )
 
-    def generate_ai_scenarios(self) -> list[StoryScenario]:
+    async def generate_ai_scenarios(self) -> list[StoryScenario]:
         scenarios = []
-        for scenario in generate_crime_story_scenarios():
+        _scenarios = await generate_crime_story_scenarios()
+        for scenario in _scenarios:
             scenarios.append(
                     StoryScenario.create(
                     story=None,
@@ -102,7 +103,7 @@ class StoryService:
             )
         return scenarios
 
-    def get_unused_scenarios(self, limit: int = 4) -> list[StoryScenario]:
+    async def get_unused_scenarios(self, limit: int = 4) -> list[StoryScenario]:
         #TODO limit created_at, get 100 return shuffle limit
         query = (
             StoryScenario
@@ -116,18 +117,18 @@ class StoryService:
         scenarios = list(query)
         
         if len(scenarios) < limit:
-            scenarios = self.generate_ai_scenarios()
+            scenarios = await self.generate_ai_scenarios()
         
         random.shuffle(scenarios)
         return scenarios[:limit]
 
-    def create_section(self, story: Story, choice: int) -> tuple[Section,AIStoryResponse]:
+    async def create_section(self, story: Story, choice: int) -> tuple[Section,AIStoryResponse]:
         messages = self.as_messages(story)
         messages.append({
             'role': 'user',
             'content': str(choice)
         })
-        content = llm(messages)
+        content = await llm(messages)
         ai_response = story_parser(content)
         print(f'IS END {ai_response.is_end}')
 
@@ -156,6 +157,6 @@ class StoryService:
         section.used = True
         section.save()
 
-    def get_used_section(self, section_id: int) -> Section | None:
-        section = Section.get_or_none(Section.id==section_id & Section.used==False)
+    async def get_unused_section(self, section_id: int) -> Section | None:
+        section = Section.get_or_none((Section.id==section_id) & (Section.used==False))
         return section

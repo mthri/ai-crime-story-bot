@@ -18,12 +18,12 @@ class AIStoryResponse:
     is_end: bool
     raw_data: str
 
-def generate_crime_story_scenarios() -> list[str]:
+async def generate_crime_story_scenarios() -> list[str]:
     messages = [
         {'role': 'system', 'content': GENERATE_CRIME_STORY_SCENARIOS_PROMPT},
         {'role': 'user', 'content': 'سناریو ها رو تولید کن'},
     ]
-    content = llm(messages)
+    content = await llm(messages)
     return [scenario for scenario in content.split('\n') if scenario]
 
 def story_parser(text: str) -> AIStoryResponse:
