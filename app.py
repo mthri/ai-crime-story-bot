@@ -200,7 +200,7 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await commands[update.message.text](update, context)
         return None
     elif update.message.text.startswith('/new'):
-        await new_story_command(update, context, scenario=update.message.text.strip('/new')[1])
+        await new_story_command(update, context, scenario=update.message.text.strip('/new'))
     
     await update.message.reply_text(
        'متوجه منظورت نشدم 🤔\nبهتر از دستور /help استفاده کنی.'
