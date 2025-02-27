@@ -54,7 +54,7 @@ class StoryService:
         story.save()
     
     def start_story(self, story: Story, story_scenario: StoryScenario) -> tuple[Section,AIStoryResponse]:
-        scenario = f'توصیف سناریو اولیه:\n{story_scenario.scenario}'
+        scenario = f'توصیف سناریو اولیه:\n{story_scenario.text}'
         messages = [
             {'role': 'system','content': STORY_PROMPT%(3,3)},
             {'role': 'user','content': scenario}
@@ -86,7 +86,7 @@ class StoryService:
     def create_scenario(self, story: Story, text: str) -> StoryScenario:
         return StoryScenario.create(
             story=story,
-            scenario=text,
+            text=text,
             is_system=False
         )
 
@@ -96,7 +96,7 @@ class StoryService:
             scenarios.append(
                     StoryScenario.create(
                     story=None,
-                    scenario=scenario,
+                    text=scenario,
                     is_system=True
                 )
             )
@@ -149,9 +149,13 @@ class StoryService:
         return scenario
     
     def get_section(self, section_id: int) -> Section:
-        #TODO must not used
         section = Section.get_by_id(section_id)
         return section
     
     def mark_section_as_used(self, section: Section) -> None:
-        pass
+        section.used = True
+        section.save()
+
+    def get_used_section(self, section_id: int) -> Section | None:
+        section = Section.get_or_none(Section.id==section_id & Section.used==False)
+        return section

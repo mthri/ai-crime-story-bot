@@ -65,8 +65,7 @@ class Story(BaseModel):
 class StoryScenario(BaseModel):
     id = BigAutoField()
     story = ForeignKeyField(Story, on_delete=None, null=True)
-    #TODO change to text = TextField()
-    scenario = TextField()
+    text = TextField()
     is_system = BooleanField()
     created_at = DateTimeField(default=datetime.now)
 
@@ -76,7 +75,7 @@ class Section(BaseModel):
     story = ForeignKeyField(Story, backref='sections')
     text = TextField()
     is_system = BooleanField()
-    # used = BooleanField(default=False)
+    used = BooleanField(default=False)
     created_at = DateTimeField(default=datetime.now)
 
 

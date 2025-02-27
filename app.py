@@ -30,7 +30,7 @@ END_STORY_TEXT_FORMAT = '''*{title}*
 '''
 
 
-
+sponsor = InlineKeyboardButton('[محل تبلیغ شما]', url='https://iamamir.ir')
 answered = set()
 
 class ButtonType(enum.Enum):
@@ -46,7 +46,7 @@ def generate_choice_button(section: Section, ai_response: AIStoryResponse) -> In
             callback_data=f'{ButtonType.OPTION.value}:{section.id}:{option.id}'
         ))
     
-    return InlineKeyboardMarkup([keyboard])
+    return InlineKeyboardMarkup([keyboard, [sponsor]])
 
 async def send_story_section(update: Update, context: ContextTypes.DEFAULT_TYPE,
                              section: Section, choice: int) -> None:
@@ -88,11 +88,11 @@ async def send_ai_generated_scenario(update: Update) -> None:
             f'{index}',
             callback_data=f'{ButtonType.AI_SCENARIOS.value}:{scenario.id}'
         ))
-        text += f'*{index}*- {scenario.scenario}\n\n'
-
+        text += f'*{index}*- {scenario.text}\n\n'
+    
     await update.message.reply_text(
        text,
-       reply_markup=InlineKeyboardMarkup([keyboard])
+       reply_markup=InlineKeyboardMarkup([keyboard, [sponsor]])
     )
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -160,7 +160,7 @@ async def new_story_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
     await update.effective_message.delete()
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=scenario.scenario
+        text=scenario.text
     )
     await context.bot.send_chat_action(
         chat_id=update.effective_chat.id,
@@ -226,6 +226,12 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     if btype == ButtonType.OPTION.value:
         section = story_service.get_section(int(data[0]))
+        if not section:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text='نمی‌تونی به قبل برگردی، انتخابت رو کردی! :)'
+            )
+            return None
         option = int(data[1])
         await send_story_section(update, context, section, option)
     
