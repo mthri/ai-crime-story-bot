@@ -18,16 +18,15 @@ class UserService:
         return user
 
     def deactivate(self, user: User) -> None:
-        user.active = True
+        user.active = False
         user.save()
     
-#TODO make it awaitable and user async peewee
+#TODO make it awaitable and use async peewee
 class StoryService:
     def __init__(self):
         pass
 
-    def create(self,user: User) -> Story:
-        #TODO must have one active story
+    async def create(self, user: User) -> Story:
         return Story.create(user=user)
     
     def get_history(self, story: Story) -> list[Section]:
@@ -158,5 +157,19 @@ class StoryService:
         section.save()
 
     async def get_unused_section(self, section_id: int) -> Section | None:
-        section = Section.get_or_none((Section.id==section_id) & (Section.used==False))
+        section = (
+            Section
+            .select()
+            .join(Story)
+            .where(
+                (Section.id == section_id) &
+                (Section.used == False) &
+                (Story.is_end == False)
+            )
+            .get_or_none()
+        )
         return section
+    
+    async def deactivate_active_stories(self, user: User) -> None:
+        query = Story.update(is_end=True).where((Story.user == user) & (Story.is_end == False))
+        query.execute()
