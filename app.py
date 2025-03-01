@@ -1,14 +1,16 @@
 import enum
 import logging
+import traceback
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 
-from config import BALE_BOT_TOKEN
+from config import BALE_BOT_TOKEN, SPONSOR_TEXT, SPONSOR_URL
 from services import UserService, StoryService, AIStoryResponse
 from models import User, Story, Section, StoryScenario
 
-#TODO enable logging
+logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger('app')
 
 ADMINS = [
 ]
@@ -30,7 +32,7 @@ END_STORY_TEXT_FORMAT = '''*{title}*
 '''
 
 
-sponsor = InlineKeyboardButton('[محل تبلیغ شما]', url='https://iamamir.ir')
+sponsor = InlineKeyboardButton(SPONSOR_TEXT, url=SPONSOR_URL)
 answered = set()
 
 class ButtonType(enum.Enum):
@@ -134,7 +136,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         text=text
     )
 
-#TODO close all not end story
 async def new_story_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
                             scenario_text: str = None, scenario_obj: StoryScenario = None) -> None:
     if not scenario_text and not scenario_obj:
@@ -147,7 +148,8 @@ async def new_story_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
         update.effective_user.first_name,
         update.effective_user.last_name
     )
-    story = story_service.create(user)
+    await story_service.deactivate_active_stories(user)
+    story = await story_service.create(user)
     if scenario_text:
         scenario = story_service.create_scenario(
             story,
@@ -193,7 +195,11 @@ commands = {
 
 
 async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    #TODO ignore group or channel, only pv
+    # Ignore messages from groups or channels, only process private messages
+    if update.message.chat.type != 'private':
+        return None
+    
+    #TODO remove it later
     if update.message.id in answered:
         return None
     else:
@@ -247,8 +253,26 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     else:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=f'دنبال چی میگردی شیطون؟ :)'
+            text="دنبال چی می‌گردی، شیطون؟ 😏🔍"
         )
+
+async def error_handler(update, context):
+    """Log the error and send a message to the user."""
+    # Log the error
+    logger.error(f"Exception while handling an update: {context.error}")
+    
+    # Gather error information
+    tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
+    tb_string = ''.join(tb_list)    
+    update_str = update.to_dict() if update else 'No update'
+    message = f"An exception occurred:\n{context.error}\n\nTraceback:\n{tb_string}\n\nUpdate: {update_str}"
+    logger.exception(message)
+    
+    # Optionally notify a specific user or channel about the error
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="اوه نه! یه چیزی این وسط ناجور شد 😅 ولی نگران نباش، دارم بررسیش می‌کنم! 🔍✨ \nیه کم صبر کن و چند دقیقه دیگه دوباره امتحان کن 😉\nبوس بهت 😘"
+    )
 
 def main() -> None:
     """Run the bot."""
@@ -265,6 +289,8 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, new_message))
     
     application.add_handler(CallbackQueryHandler(button_click))
+
+    application.add_error_handler(error_handler)
     
     application.run_polling()
 
