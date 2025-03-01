@@ -1,23 +1,39 @@
 import enum
 import logging
+from logging.handlers import RotatingFileHandler
 import traceback
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
+from telegram.ext import (
+    Application, 
+    CommandHandler, 
+    MessageHandler, 
+    filters, 
+    ContextTypes, 
+    CallbackQueryHandler
+)
 
-from config import BALE_BOT_TOKEN, SPONSOR_TEXT, SPONSOR_URL
+from config import BALE_BOT_TOKEN, SPONSOR_TEXT, SPONSOR_URL, ADMINS
 from services import UserService, StoryService, AIStoryResponse
 from models import User, Story, Section, StoryScenario
 
-logging.basicConfig(level=logging.WARNING)
+# Configure logging with more detailed format and file rotation
+LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+file_handler = RotatingFileHandler('bot.log', maxBytes=10*1024*1024, backupCount=5)
+file_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+
+logging.basicConfig(level=logging.INFO, handlers=[file_handler, console_handler])
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger('app')
 
-ADMINS = [
-]
-
+# Initialize services
 user_service = UserService()
 story_service = StoryService()
 
+# Message templates for story formatting
 STORY_TEXT_FORMAT = '''*{title}*
 
 {body}
@@ -31,35 +47,74 @@ END_STORY_TEXT_FORMAT = '''*{title}*
 {body}
 '''
 
+# Create sponsor button
+sponsor_button = InlineKeyboardButton(SPONSOR_TEXT, url=SPONSOR_URL)
 
-sponsor = InlineKeyboardButton(SPONSOR_TEXT, url=SPONSOR_URL)
-answered = set()
+# Keep track of answered messages to prevent duplicates
+answered_messages = set()
 
 class ButtonType(enum.Enum):
-    OPTION = 'OPTION'
-    AI_SCENARIOS = 'AI_SCENARIOS'
+    """Enum to define types of button interactions."""
+    OPTION = 'OPTION'  # For story option selection
+    AI_SCENARIOS = 'AI_SCENARIOS'  # For selecting AI-generated scenarios
 
 
 def generate_choice_button(section: Section, ai_response: AIStoryResponse) -> InlineKeyboardMarkup:
+    """
+    Generate inline keyboard buttons for story options.
+    
+    Args:
+        section: The current story section
+        ai_response: The AI-generated story response with options
+        
+    Returns:
+        InlineKeyboardMarkup with numbered options and sponsor button
+    """
     keyboard = []
+    option_buttons = []
+    
     for option in ai_response.options:
-        keyboard.append(InlineKeyboardButton(
+        option_buttons.append(InlineKeyboardButton(
             f'{option.id}',
             callback_data=f'{ButtonType.OPTION.value}:{section.id}:{option.id}'
         ))
     
-    return InlineKeyboardMarkup([keyboard, [sponsor]])
-
-async def send_story_section(update: Update, context: ContextTypes.DEFAULT_TYPE,
-                             section: Section, choice: int) -> None:
+    keyboard.append(option_buttons)
+    keyboard.append([sponsor_button])
     
+    return InlineKeyboardMarkup(keyboard)
+
+
+async def send_story_section(
+    update: Update, 
+    context: ContextTypes.DEFAULT_TYPE,
+    section: Section, 
+    choice: int
+) -> None:
+    """
+    Send the next section of a story based on user's choice.
+    
+    Args:
+        update: Telegram update object
+        context: Telegram context object
+        section: Current story section
+        choice: Option number chosen by the user
+    """
+    chat_id = update.effective_chat.id
+    
+    # Show typing indicator
     await context.bot.send_chat_action(
-        chat_id=update.effective_chat.id,
+        chat_id=chat_id,
         action='typing'
     )
+    
+    # Mark current section as used to prevent re-use
     story_service.mark_section_as_used(section)
+    
+    # Generate next section based on choice
     section, ai_response = await story_service.create_section(section.story, choice)
-
+    
+    # Prepare message text and options based on whether story has ended
     if not ai_response.is_end:
         reply_markup = generate_choice_button(section, ai_response)
         text = STORY_TEXT_FORMAT.format(
@@ -75,29 +130,57 @@ async def send_story_section(update: Update, context: ContextTypes.DEFAULT_TYPE,
             options='\n'.join([f'{option.id}- {option.text}' for option in ai_response.options])
         )
 
+    # Send the message with story text
     await context.bot.send_message(
-        chat_id=update.effective_chat.id,
+        chat_id=chat_id,
         text=text,
-        reply_markup=reply_markup
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
     )
+    logger.info(f'Sent story section to user {update.effective_user.id}')
+
 
 async def send_ai_generated_scenario(update: Update) -> None:
+    """
+    Send a list of AI-generated story scenarios for the user to choose from.
+    
+    Args:
+        update: Telegram update object
+    """
+    # Get unused AI scenarios
     scenarios = await story_service.get_unused_scenarios()
     keyboard = []
     text = ''
+    
+    # Generate buttons and formatted text for each scenario
+    scenario_buttons = []
     for index, scenario in enumerate(scenarios, start=1):
-        keyboard.append(InlineKeyboardButton(
+        scenario_buttons.append(InlineKeyboardButton(
             f'{index}',
             callback_data=f'{ButtonType.AI_SCENARIOS.value}:{scenario.id}'
         ))
         text += f'*{index}*- {scenario.text}\n\n'
     
+    keyboard.append(scenario_buttons)
+    keyboard.append([sponsor_button])
+    
+    # Send the message with scenarios
     await update.message.reply_text(
        text,
-       reply_markup=InlineKeyboardMarkup([keyboard, [sponsor]])
+       reply_markup=InlineKeyboardMarkup(keyboard),
+       parse_mode='Markdown'
     )
+    logger.info(f'Sent AI scenarios to user {update.effective_user.id}')
+
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the /start command to introduce the bot to new users.
+    
+    Args:
+        update: Telegram update object
+        context: Telegram context object
+    """
     text = '''سلام! 👋
 من یک کارآگاه هوش مصنوعی هستم که با جدیدترین مدل‌های زبانی، داستان‌های جنایی منحصربه‌فردی برای تو می‌سازم! 🔎
 
@@ -110,10 +193,20 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=text
+        text=text,
+        parse_mode='Markdown'
     )
+    logger.info(f'New user started the bot: {update.effective_user.id}')
+
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the /help command to display usage instructions.
+    
+    Args:
+        update: Telegram update object
+        context: Telegram context object
+    """
     text = '''📌 *راهنمای ربات مستر میستری*  
 
 👋 سلام! اینجا می‌تونی داستان‌های جنایی منحصر‌به‌فرد خودت رو بسازی. برای استفاده از ربات، این دستورات رو در نظر داشته باش:  
@@ -129,27 +222,50 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 📢 *نکته:* این ربات در حال توسعه هست! اگر مشکلی دیدی یا پیشنهادی داشتی، از طریق آیدی @mthri با ما در ارتباط باش.  
 
 🔍 آماده‌ای رازها رو کشف کنی؟ فقط یه دستور کافیه! 🚀  
-
 '''
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=text
+        text=text,
+        parse_mode='Markdown'
     )
+    logger.info(f'Help command used by user {update.effective_user.id}')
 
-async def new_story_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
-                            scenario_text: str = None, scenario_obj: StoryScenario = None) -> None:
+
+async def new_story_command(
+    update: Update, 
+    context: ContextTypes.DEFAULT_TYPE,
+    scenario_text: str | None = None, 
+    scenario_obj: StoryScenario | None = None
+) -> None:
+    """
+    Start a new story based on user input or AI-generated scenario.
+    
+    Args:
+        update: Telegram update object
+        context: Telegram context object
+        scenario_text: Custom scenario text from user (optional)
+        scenario_obj: Pre-generated scenario object (optional)
+    """
+    # If no scenario is provided, show AI-generated options
     if not scenario_text and not scenario_obj:
         await send_ai_generated_scenario(update)
         return None
     
+    # Get or create user
     user = user_service.get_user(
         update.effective_user.id,
         update.effective_user.username,
         update.effective_user.first_name,
         update.effective_user.last_name
     )
+    
+    # Deactivate any active stories for this user
     await story_service.deactivate_active_stories(user)
+    
+    # Create a new story
     story = await story_service.create(user)
+    
+    # Set up the scenario
     if scenario_text:
         scenario = story_service.create_scenario(
             story,
@@ -158,35 +274,52 @@ async def new_story_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
     elif scenario_obj:
         scenario = scenario_obj
     else:
-        raise Exception('Invalid scenario')
+        logger.error(f'Invalid scenario for user {update.effective_user.id}')
+        raise ValueError('Invalid scenario: both scenario_text and scenario_obj are None')
     
-    # delete list of ai scenarios
-    #TODO in ai scenarios messsage, deleted
-    await update.effective_message.delete()
+    # Delete the AI scenarios list message if possible
+    try:
+        await update.effective_message.delete()
+    except Exception as e:
+        logger.warning(f'Could not delete message: {e}')
+    
+    # Send the scenario text
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=scenario.text
+        text=scenario.text,
+        parse_mode='Markdown'
     )
+    
+    # Show typing indicator
     await context.bot.send_chat_action(
         chat_id=update.effective_chat.id,
         action='typing'
     )
     
+    # Start the story with the chosen scenario
     section, ai_response = await story_service.start_story(story, scenario)
+    
+    # Prepare reply markup with options
     reply_markup = generate_choice_button(section, ai_response)
+    
+    # Format the story text
     text = STORY_TEXT_FORMAT.format(
         title=ai_response.title,
         body=ai_response.story,
         options='\n'.join([f'{option.id}- {option.text}' for option in ai_response.options])
     )
 
+    # Send the first story section
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=text,
-        reply_markup=reply_markup
+        reply_markup=reply_markup,
+        parse_mode='Markdown'
     )
+    logger.info(f'New story started for user {update.effective_user.id}')
 
 
+# Command handler mapping
 commands = {
     '/start': start_command,
     '/help': help_command,
@@ -195,104 +328,183 @@ commands = {
 
 
 async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle new messages from users.
+    
+    Args:
+        update: Telegram update object
+        context: Telegram context object
+    """
     # Ignore messages from groups or channels, only process private messages
     if update.message.chat.type != 'private':
+        logger.debug(f'Ignored non-private message from {update.effective_user.id}')
         return None
     
-    #TODO remove it later
-    if update.message.id in answered:
+    # Prevent duplicate processing of messages
+    if update.message.id in answered_messages:
+        logger.debug(f'Ignored duplicate message {update.message.id}')
         return None
-    else:
-        answered.add(update.message.id)
     
-    if update.message.text.startswith('/') and commands.get(update.message.text):
-        await commands[update.message.text](update, context)
-        return None
-    elif update.message.text.startswith('/new'):
-        await new_story_command(update, context, scenario_text=update.message.text.strip('/new'))
+    answered_messages.add(update.message.id)
     
+    # Log the incoming message
+    logger.info(f'Received message from {update.effective_user.id}: {update.message.text[:20]}...')
+    
+    # Handle commands
+    if update.message.text.startswith('/'):
+        command = update.message.text.split()[0]
+        if command in commands:
+            await commands[command](update, context)
+            return None
+        elif update.message.text.startswith('/new'):
+            # Extract scenario text after "/new"
+            scenario_text = update.message.text[4:].strip()
+            await new_story_command(update, context, scenario_text=scenario_text)
+            return None
+    
+    # Default response for unrecognized messages
     await update.message.reply_text(
-       'متوجه منظورت نشدم 🤔\nبهتر از دستور /help استفاده کنی.'
+       'متوجه منظورت نشدم 🤔\nبهتر از دستور /help استفاده کنی.',
+       parse_mode='Markdown'
     )
+    logger.info(f'Sent help suggestion to user {update.effective_user.id}')
+
 
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """This function will handle the click event of the inline button."""
-    #TODO remove later
-    if update.update_id in answered:
-        return None
-    else:
-        answered.add(update.update_id)
+    """
+    Handle inline button clicks from users.
     
+    Args:
+        update: Telegram update object
+        context: Telegram context object
+    """
+    # Prevent duplicate processing
+    if update.update_id in answered_messages:
+        logger.debug(f'Ignored duplicate button click {update.update_id}')
+        return None
+    
+    answered_messages.add(update.update_id)
+    
+    # Get user information
     user = user_service.get_user(
         update.effective_user.id,
         update.effective_user.username,
         update.effective_user.first_name,
         update.effective_user.last_name
     )
+    
+    # Process button data
     query = update.callback_query
     query_data = query.data
+    
+    # Answer the callback query to stop "loading" animation
+    # await query.answer()
+    
+    # Parse button data
     btype, *data = query_data.split(':')
+    logger.info(f'Button click: {btype} from user {update.effective_user.id}')
     
     if btype == ButtonType.OPTION.value:
-        # for ignore user to use old section response
-        section = await story_service.get_unused_section(int(data[0]))
+        # Handle story option selection
+        section_id = int(data[0])
+        option = int(data[1])
+        
+        # Get unused section (prevents users from using old sections)
+        section = await story_service.get_unused_section(section_id)
+            
         if not section:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text='نمی‌تونی به قبل برگردی، انتخابت رو کردی! :)'
+                text="نمی‌تونی به عقب برگردی... انتخابت رو کردی! 😉🔥",
+                parse_mode="Markdown"
             )
+            logger.warning(f'User {update.effective_user.id} tried to use an already used section')
             return None
-        option = int(data[1])
+            
+        # Send next story section based on choice
         await send_story_section(update, context, section, option)
-    
+            
     elif btype == ButtonType.AI_SCENARIOS.value:
+        # Handle AI scenario selection
         scenario_id = int(data[0])
         scenario = story_service.get_scenario(scenario_id)
         await new_story_command(update, context, scenario_obj=scenario)
-    
+            
     else:
+        # Unknown button type
+        logger.warning(f'Unknown button type: {btype} from user {update.effective_user.id}')
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="دنبال چی می‌گردی، شیطون؟ 😏🔍"
+            text='دنبال چی می‌گردی، شیطون؟ 😏🔍',
+            parse_mode='Markdown'
         )
+    
 
-async def error_handler(update, context):
-    """Log the error and send a message to the user."""
-    # Log the error
-    logger.error(f"Exception while handling an update: {context.error}")
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle errors that occur during message processing.
     
-    # Gather error information
+    Args:
+        update: Telegram update object
+        context: Telegram context object with the error
+    """
+    # Format the error traceback
     tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
-    tb_string = ''.join(tb_list)    
-    update_str = update.to_dict() if update else 'No update'
-    message = f"An exception occurred:\n{context.error}\n\nTraceback:\n{tb_string}\n\nUpdate: {update_str}"
-    logger.exception(message)
+    tb_string = ''.join(tb_list)
     
-    # Optionally notify a specific user or channel about the error
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="اوه نه! یه چیزی این وسط ناجور شد 😅 ولی نگران نباش، دارم بررسیش می‌کنم! 🔍✨ \nیه کم صبر کن و چند دقیقه دیگه دوباره امتحان کن 😉\nبوس بهت 😘"
-    )
+    # Get update info if available
+    update_str = update.to_dict() if update else 'No update'
+    
+    # Log detailed error information
+    error_message = f'Exception: {context.error}\n\nTraceback:\n{tb_string}\n\nUpdate: {update_str}'
+    logger.error(error_message)
+    
+    # Send friendly error message to user
+    try:
+        if update and update.effective_chat:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text='اوه نه! یه چیزی این وسط ناجور شد 😅 ولی نگران نباش، دارم بررسیش می‌کنم! 🔍✨ \nیه کم صبر کن و چند دقیقه دیگه دوباره امتحان کن 😉\nبوس بهت 😘',
+                parse_mode='Markdown'
+            )
+            logger.info(f'Sent error message to user {update.effective_chat.id}')
+    except Exception as e:
+        logger.error(f'Error sending error message: {e}')
+
 
 def main() -> None:
-    """Run the bot."""
+    """
+    Main function to run the bot.
+    
+    Initializes the Telegram bot application, sets up handlers,
+    and starts polling for updates.
+    """
+    logger.info('Starting Mystery Bot...')
+    
+    # Initialize the application with Bale bot token
     application = Application.builder().token(BALE_BOT_TOKEN)\
                              .base_url('https://tapi.bale.ai/')\
                              .build()
     
-    # ignore old pending updates
-    # application.run_polling(drop_pending_updates=True)
+    # Set up command handlers
+    application.add_handler(CommandHandler('help', help_command))
+    application.add_handler(CommandHandler('start', start_command))
+    application.add_handler(CommandHandler('new', new_story_command))
     
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("start", start_command))
-    
+    # Set up text message handler
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, new_message))
     
+    # Set up button click handler
     application.add_handler(CallbackQueryHandler(button_click))
-
+    
+    # Set up error handler
     application.add_error_handler(error_handler)
     
-    application.run_polling()
+    # Start the bot
+    logger.info('Bot is running!')
+    application.run_polling(drop_pending_updates=True)
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()

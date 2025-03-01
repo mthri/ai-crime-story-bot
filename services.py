@@ -1,40 +1,111 @@
 import random
+import logging
 
 from models import User, Story, Section, StoryScenario
-from utils import generate_crime_story_scenarios
+from utils import generate_crime_story_scenarios, story_parser, Option, AIStoryResponse
 from core import llm
-from utils import story_parser, Option, AIStoryResponse
 from prompts import STORY_PROMPT
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 class UserService:
-    def __init__(self):
-        pass
-
+    '''
+    Service class for managing user-related operations.
+    
+    Provides functionality for retrieving, creating, and managing users
+    in the system.
+    '''
+    
     def get_user(self, user_id: int, username: str = None, first_name: str = None, last_name: str = None) -> User:
+        '''
+        Get a user by ID or create if not exists.
+        
+        Args:
+            user_id (int): Unique identifier for the user
+            username (str, optional): User's username
+            first_name (str, optional): User's first name
+            last_name (str, optional): User's last name
+            
+        Returns:
+            User: The retrieved or newly created user
+            
+        Raises:
+            Exception: If the user exists but is deactivated
+        '''
         user, created = User.get_or_create(user_id, username, first_name, last_name)
+        
+        if created:
+            logger.info(f'Created new user with ID: {user_id}')
+        else:
+            logger.debug(f'Retrieved existing user with ID: {user_id}')
+            
         if not user.active:
-            raise Exception(f'User {user.user_id} is deactivate.')
+            logger.warning(f'Attempted to get deactivated user: {user_id}')
+            raise Exception(f'User {user.user_id} is deactivated.')
+            
         return user
 
     def deactivate(self, user: User) -> None:
-        user.active = False
+        '''
+        Deactivate a user.
+        
+        Args:
+            user (User): User to deactivate
+        '''
+        logger.info(f'Deactivating user: {user.user_id}')
+        user.active = True
         user.save()
-    
-#TODO make it awaitable and use async peewee
-class StoryService:
-    def __init__(self):
-        pass
 
+
+class StoryService:
+    '''
+    Service class for managing interactive story operations.
+    
+    Provides functionality for creating, retrieving, and progressing
+    through interactive stories.
+    '''
+    
     async def create(self, user: User) -> Story:
+        '''
+        Create a new story for a user.
+        
+        Args:
+            user (User): The user for whom to create the story
+            
+        Returns:
+            Story: The newly created story
+        '''
+        logger.info(f'Creating new story for user: {user.user_id}')
         return Story.create(user=user)
     
     def get_history(self, story: Story) -> list[Section]:
+        '''
+        Get the history of sections for a story.
+        
+        Args:
+            story (Story): The story to retrieve history for
+            
+        Returns:
+            list[Section]: List of sections in chronological order
+        '''
+        logger.debug(f'Retrieving history for story: {story.id}')
         return story.sections_history()
     
     def as_messages(self, story: Story) -> list[dict]:
+        '''
+        Convert story sections to message format for the LLM.
+        
+        Args:
+            story (Story): The story to convert
+            
+        Returns:
+            list[dict]: Messages in the format expected by the LLM
+        '''
         messages = []
         sections = self.get_history(story)
+        
         for index, section in enumerate(sections):
             if section.is_system:
                 messages.append({
@@ -46,43 +117,82 @@ class StoryService:
                     'role': 'user',
                     'content': section.text
                 })
+                
+        logger.debug(f'Converted story {story.id} to {len(messages)} messages')
         return messages
     
     def deactivate(self, story: Story) -> None:
+        '''
+        Mark a story as ended.
+        
+        Args:
+            story (Story): The story to deactivate
+        '''
+        logger.info(f'Marking story {story.id} as ended')
         story.is_end = True
         story.save()
     
-    async def start_story(self, story: Story, story_scenario: StoryScenario) -> tuple[Section,AIStoryResponse]:
+    async def start_story(self, story: Story, story_scenario: StoryScenario) -> tuple[Section, AIStoryResponse]:
+        '''
+        Start a new story with the given scenario.
+        
+        Args:
+            story (Story): The story to start
+            story_scenario (StoryScenario): The initial scenario for the story
+            
+        Returns:
+            tuple[Section, AIStoryResponse]: The created section and parsed AI response
+        '''
+        logger.info(f'Starting story {story.id} with scenario {story_scenario.id}')
+        
         scenario = f'توصیف سناریو اولیه:\n{story_scenario.text}'
         messages = [
-            {'role': 'system','content': STORY_PROMPT%(3,3)},
-            {'role': 'user','content': scenario}
+            {'role': 'system', 'content': STORY_PROMPT % (3, 3)},
+            {'role': 'user', 'content': scenario}
         ]
+        
+        logger.debug('Calling LLM for initial story content')
         content = await llm(messages)
         ai_response = story_parser(content)
         
+        # Link scenario to story
         story_scenario.story = story
         story_scenario.save()
         
+        # Create sections
         system_section = Section.create(
             story=story,
             text=STORY_PROMPT,
             is_system=True
         )
+        
         user_section = Section.create(
             story=story,
             text=scenario,
             is_system=False
         )
+        
         system_section = Section.create(
             story=story,
             text=ai_response.raw_data,
             is_system=True
         )
-
+        
+        logger.info(f'Story {story.id} started successfully')
         return system_section, ai_response
 
     def create_scenario(self, story: Story, text: str) -> StoryScenario:
+        '''
+        Create a user-defined scenario for a story.
+        
+        Args:
+            story (Story): The story to create the scenario for
+            text (str): The scenario text
+            
+        Returns:
+            StoryScenario: The created scenario
+        '''
+        logger.info(f'Creating user-defined scenario for story {story.id}')
         return StoryScenario.create(
             story=story,
             text=text,
@@ -90,52 +200,94 @@ class StoryService:
         )
 
     async def generate_ai_scenarios(self) -> list[StoryScenario]:
+        '''
+        Generate new AI-created scenarios.
+        
+        Returns:
+            list[StoryScenario]: List of newly created scenarios
+        '''
+        logger.info('Generating new AI scenarios')
         scenarios = []
         _scenarios = await generate_crime_story_scenarios()
+        
         for scenario in _scenarios:
             scenarios.append(
-                    StoryScenario.create(
+                StoryScenario.create(
                     story=None,
                     text=scenario,
                     is_system=True
                 )
             )
+            
+        logger.info(f'Generated {len(scenarios)} new AI scenarios')
         return scenarios
 
     async def get_unused_scenarios(self, limit: int = 4) -> list[StoryScenario]:
-        #TODO limit created_at, get 100 return shuffle limit
+        '''
+        Get unused system-generated scenarios.
+        
+        Args:
+            limit (int, optional): Maximum number of scenarios to return. Defaults to 4.
+            
+        Returns:
+            list[StoryScenario]: List of unused scenarios
+        '''
+        logger.debug(f'Retrieving up to {limit} unused scenarios')
+        
+        # Query for unused scenarios
         query = (
             StoryScenario
             .select()
             .where(
-                (StoryScenario.story == None)
-                & (StoryScenario.is_system == True)
+                (StoryScenario.story == None) &
+                (StoryScenario.is_system == True)
             )
             .limit(100)
         )
         scenarios = list(query)
         
+        # Generate new scenarios if needed
         if len(scenarios) < limit:
+            logger.info(f'Only {len(scenarios)} scenarios available, generating more')
             scenarios = await self.generate_ai_scenarios()
         
+        # Randomize and limit results
         random.shuffle(scenarios)
         return scenarios[:limit]
 
-    async def create_section(self, story: Story, choice: int) -> tuple[Section,AIStoryResponse]:
+    async def create_section(self, story: Story, choice: int) -> tuple[Section, AIStoryResponse]:
+        '''
+        Create a new section in the story based on user choice.
+        
+        Args:
+            story (Story): The story to add a section to
+            choice (int): The user's choice number
+            
+        Returns:
+            tuple[Section, AIStoryResponse]: The created section and parsed AI response
+        '''
+        logger.info(f'Creating new section for story {story.id} with choice {choice}')
+        
+        # Prepare messages for LLM
         messages = self.as_messages(story)
         messages.append({
             'role': 'user',
             'content': str(choice)
         })
+        
+        # Get AI response
+        logger.debug('Calling LLM for next story section')
         content = await llm(messages)
         ai_response = story_parser(content)
-        print(f'IS END {ai_response.is_end}')
+        logger.debug(f'Story end status: {ai_response.is_end}')
 
+        # Create sections in database
         user_section = Section.create(
             story=story,
             text=str(choice),
             is_system=False
         )
+        
         system_section = Section.create(
             story=story,
             text=ai_response.raw_data,
@@ -145,18 +297,55 @@ class StoryService:
         return system_section, ai_response
 
     def get_scenario(self, scenario_id: int) -> StoryScenario:
+        '''
+        Get a scenario by ID.
+        
+        Args:
+            scenario_id (int): ID of the scenario to retrieve
+            
+        Returns:
+            StoryScenario: The retrieved scenario
+        '''
+        logger.debug(f'Retrieving scenario with ID: {scenario_id}')
         scenario = StoryScenario.get_by_id(scenario_id)
         return scenario
     
     def get_section(self, section_id: int) -> Section:
+        '''
+        Get a section by ID.
+        
+        Args:
+            section_id (int): ID of the section to retrieve
+            
+        Returns:
+            Section: The retrieved section
+        '''
+        logger.debug(f'Retrieving section with ID: {section_id}')
         section = Section.get_by_id(section_id)
         return section
     
     def mark_section_as_used(self, section: Section) -> None:
+        '''
+        Mark a section as used.
+        
+        Args:
+            section (Section): The section to mark
+        '''
+        logger.debug(f'Marking section {section.id} as used')
         section.used = True
         section.save()
 
     async def get_unused_section(self, section_id: int) -> Section | None:
+        '''
+        Get an unused section by ID if it exists and is part of an active story.
+        
+        Args:
+            section_id (int): ID of the section to retrieve
+            
+        Returns:
+            Section | None: The retrieved section or None if not found
+        '''
+        logger.debug(f'Looking for unused section with ID: {section_id}')
         section = (
             Section
             .select()
@@ -168,8 +357,22 @@ class StoryService:
             )
             .get_or_none()
         )
+        
+        if section:
+            logger.debug(f'Found unused section: {section_id}')
+        else:
+            logger.debug(f'No unused section found with ID: {section_id}')
+            
         return section
     
     async def deactivate_active_stories(self, user: User) -> None:
+        '''
+        Mark all active stories for a user as ended.
+        
+        Args:
+            user (User): The user whose stories to deactivate
+        '''
+        logger.info(f'Deactivating all active stories for user: {user.user_id}')
         query = Story.update(is_end=True).where((Story.user == user) & (Story.is_end == False))
-        query.execute()
+        affected_rows = query.execute()
+        logger.info(f'Deactivated {affected_rows} stories for user: {user.user_id}')
