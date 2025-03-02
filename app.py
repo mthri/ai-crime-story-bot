@@ -13,7 +13,7 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 
-from config import BALE_BOT_TOKEN, SPONSOR_TEXT, SPONSOR_URL, ADMINS
+from config import BALE_BOT_TOKEN, SPONSOR_TEXT, SPONSOR_URL, ADMINS, LOG_CHANNEL_ID
 from services import UserService, StoryService, AIStoryResponse
 from models import User, Story, Section, StoryScenario
 
@@ -107,12 +107,13 @@ async def send_story_section(
         chat_id=chat_id,
         action='typing'
     )
-    
-    # Mark current section as used to prevent re-use
-    story_service.mark_section_as_used(section)
+    previous_section = section
     
     # Generate next section based on choice
     section, ai_response = await story_service.create_section(section.story, choice)
+
+    # Mark previous section as used to prevent re-use
+    story_service.mark_section_as_used(previous_section)
     
     # Prepare message text and options based on whether story has ended
     if not ai_response.is_end:
@@ -470,6 +471,10 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 parse_mode='Markdown'
             )
             logger.info(f'Sent error message to user {update.effective_chat.id}')
+        await context.bot.send_message(
+            chat_id=LOG_CHANNEL_ID,
+            text=error_message
+        )
     except Exception as e:
         logger.error(f'Error sending error message: {e}')
 
