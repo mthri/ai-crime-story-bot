@@ -89,7 +89,8 @@ async def send_story_section(
     update: Update, 
     context: ContextTypes.DEFAULT_TYPE,
     section: Section, 
-    choice: int
+    choice: int,
+    user: User
 ) -> None:
     """
     Send the next section of a story based on user's choice.
@@ -110,7 +111,7 @@ async def send_story_section(
     previous_section = section
     
     # Generate next section based on choice
-    section, ai_response = await story_service.create_section(section.story, choice)
+    section, ai_response = await story_service.create_section(user, section.story, choice)
 
     # Mark previous section as used to prevent re-use
     story_service.mark_section_as_used(previous_section)
@@ -208,7 +209,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         update: Telegram update object
         context: Telegram context object
     """
-    text = '''📌 *راهنمای ربات مستر میستری*  
+    text = '''📌 *راهنمای ربات من*  
 
 👋 سلام! اینجا می‌تونی داستان‌های جنایی منحصر‌به‌فرد خودت رو بسازی. برای استفاده از ربات، این دستورات رو در نظر داشته باش:  
 
@@ -232,11 +233,33 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     logger.info(f'Help command used by user {update.effective_user.id}')
 
 
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = user_service.get_user(
+        update.effective_user.id,
+        update.effective_user.username,
+        update.effective_user.first_name,
+        update.effective_user.last_name
+    )
+    stories_count, section_count, charge = await story_service.damage_report(user)
+    charge = round(abs(charge), 4)
+    text = f'''ممنون که تا اینجا باهام بودی! 😊
+تا الان با هم {stories_count} تا داستان ساختیم، {section_count} تا تصمیم گرفتیم و خب... {charge} دلار هم خرج رو دستم گذاشتی! ولی فدای سرت! 💸
+پولش رو از هر جایی که شد جور کردیم، از سرمایه‌گذار بگیر تا تبلیغات! 😅
+مهم اینه که تو باهاش حال کرده باشی! 🎉'''
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=text,
+        parse_mode='Markdown'
+    )
+    logger.info(f'Status command used by user {update.effective_user.id}')
+
+
 async def new_story_command(
     update: Update, 
     context: ContextTypes.DEFAULT_TYPE,
+    user: User,
     scenario_text: str | None = None, 
-    scenario_obj: StoryScenario | None = None
+    scenario_obj: StoryScenario | None = None,
 ) -> None:
     """
     Start a new story based on user input or AI-generated scenario.
@@ -251,14 +274,6 @@ async def new_story_command(
     if not scenario_text and not scenario_obj:
         await send_ai_generated_scenario(update)
         return None
-    
-    # Get or create user
-    user = user_service.get_user(
-        update.effective_user.id,
-        update.effective_user.username,
-        update.effective_user.first_name,
-        update.effective_user.last_name
-    )
     
     # Deactivate any active stories for this user
     await story_service.deactivate_active_stories(user)
@@ -298,7 +313,7 @@ async def new_story_command(
     )
     
     # Start the story with the chosen scenario
-    section, ai_response = await story_service.start_story(story, scenario)
+    section, ai_response = await story_service.start_story(story, scenario, user)
     
     # Prepare reply markup with options
     reply_markup = generate_choice_button(section, ai_response)
@@ -325,6 +340,7 @@ commands = {
     '/start': start_command,
     '/help': help_command,
     '/new': new_story_command,
+    '/status': status_command,
 }
 
 
@@ -347,6 +363,13 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return None
     
     answered_messages.add(update.message.id)
+
+    user = user_service.get_user(
+        update.effective_user.id,
+        update.effective_user.username,
+        update.effective_user.first_name,
+        update.effective_user.last_name
+    )
     
     # Log the incoming message
     logger.info(f'Received message from {update.effective_user.id}: {update.message.text[:20]}...')
@@ -357,7 +380,7 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if command == '/new':
             # Extract scenario text after "/new"
             scenario_text = update.message.text[4:].strip()
-            await new_story_command(update, context, scenario_text=scenario_text)
+            await new_story_command(update, context, user, scenario_text=scenario_text)
             return None
         elif command in commands:
             await commands[command](update, context)
@@ -424,13 +447,13 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             return None
             
         # Send next story section based on choice
-        await send_story_section(update, context, section, option)
+        await send_story_section(update, context, section, option, user)
             
     elif btype == ButtonType.AI_SCENARIOS.value:
         # Handle AI scenario selection
         scenario_id = int(data[0])
         scenario = story_service.get_scenario(scenario_id)
-        await new_story_command(update, context, scenario_obj=scenario)
+        await new_story_command(update, context, user, scenario_obj=scenario)
             
     else:
         # Unknown button type
@@ -442,7 +465,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
     
 
-#TODO send exception to the a channel
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handle errors that occur during message processing.
@@ -496,7 +518,8 @@ def main() -> None:
     # Set up command handlers
     application.add_handler(CommandHandler('help', help_command))
     application.add_handler(CommandHandler('start', start_command))
-    application.add_handler(CommandHandler('new', new_story_command))
+    application.add_handler(CommandHandler('status', status_command))
+    # application.add_handler(CommandHandler('new', new_story_command))
     
     # Set up text message handler
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, new_message))

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from core import llm
 from prompts import GENERATE_CRIME_STORY_SCENARIOS_PROMPT
+from config import INPUT_TOKEN_PRICE, OUTPUT_TOKEN_PRICE
 
 
 @dataclass
@@ -18,12 +19,18 @@ class AIStoryResponse:
     is_end: bool
     raw_data: str
 
+def calculate_token_price(input_tokens: int, output_tokens: int) -> float:
+    input_cost = (input_tokens * INPUT_TOKEN_PRICE) / 1_000_000
+    output_cost = (output_tokens * OUTPUT_TOKEN_PRICE) / 1_000_000
+    return input_cost + output_cost
+
 async def generate_crime_story_scenarios() -> list[str]:
     messages = [
         {'role': 'system', 'content': GENERATE_CRIME_STORY_SCENARIOS_PROMPT},
         {'role': 'user', 'content': 'سناریو ها رو تولید کن'},
     ]
-    content = await llm(messages)
+    content, input_tokens, output_tokens = await llm(messages)
+    request_cost = calculate_token_price(input_tokens, output_tokens)
     return [scenario for scenario in content.split('\n') if scenario]
 
 def story_parser(text: str) -> AIStoryResponse:

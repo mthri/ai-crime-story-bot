@@ -1,9 +1,11 @@
 import logging
 import asyncio
+import json
 
 from openai import AsyncOpenAI, RateLimitError
 
 from config import OPENAPI_API_KEY, OPENAPI_URL, OPENAPI_MODEL, MAX_RETRIES
+from models import LLMHistory
 
 logger = logging.getLogger(__name__)
 
@@ -13,15 +15,15 @@ openai_client = AsyncOpenAI(
 )
 
 
-async def llm(messages: list[dict]) -> str:
+async def llm(messages: list[dict]) -> tuple[str, int, int]:
     """
-    Sends a list of messages to the OpenAI API and returns the response content.
+    Sends a list of messages to the OpenAI API and returns the response content along with token usage.
 
     Args:
         messages (list[dict]): A list of message dictionaries to send to the OpenAI API.
 
     Returns:
-        str: The content of the response from the OpenAI API.
+        tuple[str, int, int]: A tuple containing the content of the response, the number of input tokens used, and the number of output tokens used.
 
     Raises:
         Exception: If the maximum number of retries is reached without a successful response.
@@ -33,9 +35,16 @@ async def llm(messages: list[dict]) -> str:
                 model=OPENAPI_MODEL,
                 messages=messages
             )
-            content = response.choices[0].message.content.strip()
             logger.info('Successfully received response from OpenAI API.')
-            return content
+            input_tokens = response.usage.prompt_tokens
+            output_tokens = response.usage.completion_tokens
+            content = response.choices[0].message.content.strip()
+            LLMHistory.create(
+                model=OPENAPI_MODEL,
+                prompt=json.dumps(messages, ensure_ascii=False),
+                response=content
+            )
+            return content, input_tokens, output_tokens
         except RateLimitError:
             logger.warning('Rate limit exceeded. Retrying after 20 seconds...')
             await asyncio.sleep(20)

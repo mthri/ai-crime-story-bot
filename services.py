@@ -1,8 +1,8 @@
 import random
 import logging
 
-from models import User, Story, Section, StoryScenario
-from utils import generate_crime_story_scenarios, story_parser, Option, AIStoryResponse
+from models import User, Story, Section, StoryScenario, fn
+from utils import generate_crime_story_scenarios, story_parser, AIStoryResponse, calculate_token_price
 from core import llm
 from prompts import STORY_PROMPT
 
@@ -132,7 +132,7 @@ class StoryService:
         story.is_end = True
         story.save()
     
-    async def start_story(self, story: Story, story_scenario: StoryScenario) -> tuple[Section, AIStoryResponse]:
+    async def start_story(self, story: Story, story_scenario: StoryScenario, user: User) -> tuple[Section, AIStoryResponse]:
         '''
         Start a new story with the given scenario.
         
@@ -152,7 +152,10 @@ class StoryService:
         ]
         
         logger.debug('Calling LLM for initial story content')
-        content = await llm(messages)
+        content, input_tokens, output_tokens = await llm(messages)
+        request_cost = calculate_token_price(input_tokens, output_tokens)
+        user.charge -= request_cost
+        user.save()
         ai_response = story_parser(content)
         
         # Link scenario to story
@@ -255,7 +258,7 @@ class StoryService:
         random.shuffle(scenarios)
         return scenarios[:limit]
 
-    async def create_section(self, story: Story, choice: int) -> tuple[Section, AIStoryResponse]:
+    async def create_section(self, user: User, story: Story, choice: int) -> tuple[Section, AIStoryResponse]:
         '''
         Create a new section in the story based on user choice.
         
@@ -277,7 +280,10 @@ class StoryService:
         
         # Get AI response
         logger.debug('Calling LLM for next story section')
-        content = await llm(messages)
+        content, input_tokens, output_tokens = await llm(messages)
+        request_cost = calculate_token_price(input_tokens, output_tokens)
+        user.charge -= request_cost
+        user.save()
         ai_response = story_parser(content)
         logger.debug(f'Story end status: {ai_response.is_end}')
 
@@ -376,3 +382,30 @@ class StoryService:
         query = Story.update(is_end=True).where((Story.user == user) & (Story.is_end == False))
         affected_rows = query.execute()
         logger.info(f'Deactivated {affected_rows} stories for user: {user.user_id}')
+
+    async def damage_report(self, user: User) -> tuple[int,int,float]:
+        '''
+        Calculate the damage report for a user.
+        
+        Args:
+            user (User): The user to calculate the damage report for
+            
+        Returns:
+            tuple[int,int,float]: Number of stories, sections, and charge balance
+        '''
+        logger.info(f'Calculating damage report for user: {user.user_id}')
+        
+        # Count active stories
+        stories_count = Story.select().where(Story.user == user).count()
+
+        section_count = (
+            Section
+            .select(fn.COUNT(Section.id))
+            .join(Story)
+            .join(User)
+            .where(User.user_id == user.user_id)
+            .scalar()
+        )        
+        
+        logger.info(f'Damage report for user {user.user_id}')
+        return stories_count, section_count, user.charge

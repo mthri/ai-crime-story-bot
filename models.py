@@ -16,7 +16,7 @@ class User(BaseModel):
     first_name = CharField(max_length=50, null=True)
     last_name = CharField(max_length=50, null=True)
     active = BooleanField(default=True)
-    charge = IntegerField(default=0)
+    charge = FloatField(default=0)
     created_at = DateTimeField(default=datetime.now)
 
     @property
@@ -79,8 +79,17 @@ class Section(BaseModel):
     created_at = DateTimeField(default=datetime.now)
 
 
+class LLMHistory(BaseModel):
+    id = BigAutoField()
+    user = ForeignKeyField(User, null=True)
+    model = CharField(max_length=50)
+    prompt = TextField()
+    response = TextField()
+    created_at = DateTimeField(default=datetime.now)
+
+
 def create_tables() -> None:
-    sqlite_db.create_tables([User, Story, StoryScenario, Section])
+    sqlite_db.create_tables([User, Story, StoryScenario, Section, LLMHistory])
 
 if __name__ == '__main__':
     create_tables()
