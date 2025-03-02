@@ -353,14 +353,15 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     # Handle commands
     if update.message.text.startswith('/'):
         command = update.message.text.split()[0]
-        if command in commands:
-            await commands[command](update, context)
-            return None
-        elif update.message.text.startswith('/new'):
+        if command == '/new':
             # Extract scenario text after "/new"
             scenario_text = update.message.text[4:].strip()
             await new_story_command(update, context, scenario_text=scenario_text)
             return None
+        elif command in commands:
+            await commands[command](update, context)
+            return None
+        
     
     # Default response for unrecognized messages
     await update.message.reply_text(
@@ -440,7 +441,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
     
 
-
+#TODO send exception to the a channel
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handle errors that occur during message processing.
