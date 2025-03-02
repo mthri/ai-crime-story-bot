@@ -270,6 +270,12 @@ async def new_story_command(
         scenario_text: Custom scenario text from user (optional)
         scenario_obj: Pre-generated scenario object (optional)
     """
+    # Show typing indicator
+    await context.bot.send_chat_action(
+        chat_id=update.effective_chat.id,
+        action='typing'
+    )
+    
     # If no scenario is provided, show AI-generated options
     if not scenario_text and not scenario_obj:
         await send_ai_generated_scenario(update)
