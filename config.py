@@ -12,3 +12,4 @@ SPONSOR_TEXT = config('SPONSOR_TEXT')
 SPONSOR_URL = config('SPONSOR_URL')
 
 ADMINS = config('ADMINS', cast=Csv(int), default='')
+LOG_CHANNEL_ID = config('LOG_CHANNEL_ID', cast=int, default=0)
