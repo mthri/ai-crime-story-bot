@@ -60,15 +60,21 @@ class ButtonType(enum.Enum):
     AI_SCENARIOS = 'AI_SCENARIOS'  # For selecting AI-generated scenarios
     STORY_RATE = 'STORY_RATE'
 
-def generate_story_rate_button(story: Story) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        InlineKeyboardButton(text='1', callback_data=f'{ButtonType.STORY_RATE}:{story.id}:1'),
-        InlineKeyboardButton(text='2', callback_data=f'{ButtonType.STORY_RATE}:{story.id}:2'),
-        InlineKeyboardButton(text='3', callback_data=f'{ButtonType.STORY_RATE}:{story.id}:3'),
-        InlineKeyboardButton(text='4', callback_data=f'{ButtonType.STORY_RATE}:{story.id}:4'),
-        InlineKeyboardButton(text='5', callback_data=f'{ButtonType.STORY_RATE}:{story.id}:5'),
-    ])
 
+def generate_story_rate_button(story: Story) -> InlineKeyboardMarkup:
+    keyboard = []
+    option_buttons = []
+    
+    for index in range(1, 6):
+        option_buttons.append(InlineKeyboardButton(
+            f'{index}',
+            callback_data=f'{ButtonType.STORY_RATE.value}:{story.id}:{index}'
+        ))
+    
+    keyboard.append(option_buttons)
+    # keyboard.append([sponsor_button])
+    
+    return InlineKeyboardMarkup(keyboard)
 
 def generate_choice_button(section: Section, ai_response: AIStoryResponse) -> InlineKeyboardMarkup:
     """
