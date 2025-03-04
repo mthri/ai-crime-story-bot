@@ -1,13 +1,16 @@
 import random
 import logging
+from collections import defaultdict
+from functools import wraps
 
 from models import User, Story, Section, StoryScenario, fn
 from utils import generate_crime_story_scenarios, story_parser, AIStoryResponse, calculate_token_price
 from core import llm
 from prompts import STORY_PROMPT
 
-# Configure logger
+
 logger = logging.getLogger(__name__)
+session = defaultdict(lambda: {'is_processing': False})
 
 
 class UserService:
@@ -419,3 +422,80 @@ class StoryService:
         
         logger.info(f'Damage report for user {user.user_id}')
         return stories_count, section_count, user.charge
+
+
+user_service = UserService()
+
+
+def user_lock(user):
+    """Locks the user session by setting the 'is_processing' flag to True.
+
+    Args:
+        user (str): The identifier of the user to be locked.
+
+    Side Effects:
+        Updates the global `session` dictionary.
+    """
+    session[user]['is_processing'] = True
+    logger.info(f'User {user} has been locked for processing.')
+
+
+def user_unlock(user):
+    """Unlocks the user session by setting the 'is_processing' flag to False.
+
+    Args:
+        user (str): The identifier of the user to be unlocked.
+
+    Side Effects:
+        Updates the global `session` dictionary.
+    """
+    session[user]['is_processing'] = False
+    logger.info(f'User {user} has been unlocked.')
+
+
+def is_user_lock(user):
+    """Checks if the user session is currently locked.
+
+    Args:
+        user (str): The identifier of the user.
+
+    Returns:
+        bool: True if the user session is locked, False otherwise.
+    """
+    return session[user]['is_processing']
+
+
+def asession_lock(func):
+    """Decorator that prevents concurrent execution of an async function 
+    for the same user by implementing a session lock.
+
+    If the user is already processing another request, the function call is skipped.
+
+    Args:
+        func (Callable): The async function to be wrapped.
+
+    Returns:
+        Callable: The wrapped async function with session locking.
+
+    Side Effects:
+        - Locks the user before execution.
+        - Unlocks the user after execution.
+    """
+    @wraps(func)
+    async def wrapped(update, *args, **kwargs):
+        user = user_service.get_user(
+            update.effective_user.id,
+            update.effective_user.username,
+            update.effective_user.first_name,
+            update.effective_user.last_name
+        )
+
+        if is_user_lock(user):
+            logger.warning(f'User {user} is already locked, skipping execution.')
+            return None
+        
+        user_lock(user)
+        await func(update, *args, **kwargs)
+        user_unlock(user)
+
+    return wrapped

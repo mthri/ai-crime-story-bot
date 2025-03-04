@@ -14,9 +14,10 @@ from telegram.ext import (
 )
 
 from config import BALE_BOT_TOKEN, SPONSOR_TEXT, SPONSOR_URL, ADMINS, LOG_CHANNEL_ID
-from services import UserService, StoryService, AIStoryResponse
+from services import UserService, StoryService, AIStoryResponse, user_unlock, asession_lock
 from models import User, Story, Section, StoryScenario
-from utils import session
+
+VERSION = '0.1-alpha'
 
 # Configure logging with more detailed format and file rotation
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -75,6 +76,7 @@ def generate_story_rate_button(story: Story) -> InlineKeyboardMarkup:
     # keyboard.append([sponsor_button])
     
     return InlineKeyboardMarkup(keyboard)
+
 
 def generate_choice_button(section: Section, ai_response: AIStoryResponse) -> InlineKeyboardMarkup:
     """
@@ -263,7 +265,9 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     text = f'''ممنون که تا اینجا باهام بودی! 😊
 تا الان با هم {stories_count} تا داستان ساختیم، {section_count} تا تصمیم گرفتیم و خب... {charge} دلار هم خرج رو دستم گذاشتی! ولی فدای سرت! 💸
 پولش رو از هر جایی که شد جور کردیم، از سرمایه‌گذار بگیر تا تبلیغات! 😅
-مهم اینه که تو باهاش حال کرده باشی! 🎉'''
+مهم اینه که تو باهاش حال کرده باشی! 🎉
+
+ver: {VERSION}'''
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=text,
@@ -368,6 +372,7 @@ commands = {
 }
 
 
+@asession_lock
 async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handle new messages from users.
@@ -419,6 +424,7 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     logger.info(f'Sent help suggestion to user {update.effective_user.id}')
 
 
+@asession_lock
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handle inline button clicks from users.
@@ -508,6 +514,9 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         update: Telegram update object
         context: Telegram context object with the error
     """
+    
+    user = user_service.get_user(update.effective_user.id)
+    user_unlock(user)
     # Format the error traceback
     tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
     tb_string = ''.join(tb_list)
