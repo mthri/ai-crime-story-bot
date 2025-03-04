@@ -148,7 +148,7 @@ async def send_story_section(
             body=ai_response.story,
             options='\n'.join([f'{option.id}- {option.text}' for option in ai_response.options])
         )
-        text += '\n\n به این داستان از ۵ یعنی عالی تا ۱ یعنی خیلی بد نمره بده' 
+        text += 'نظرت درباره این داستان چیه؟ 😃 از ۱ (خیلی بد) تا ۵ (عالی) بهم یه نمره بده! ⭐📖' 
 
     # Send the message with story text
     await context.bot.send_message(
