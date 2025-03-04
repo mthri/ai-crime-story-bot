@@ -16,6 +16,7 @@ from telegram.ext import (
 from config import BALE_BOT_TOKEN, SPONSOR_TEXT, SPONSOR_URL, ADMINS, LOG_CHANNEL_ID
 from services import UserService, StoryService, AIStoryResponse
 from models import User, Story, Section, StoryScenario
+from utils import session
 
 # Configure logging with more detailed format and file rotation
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -57,6 +58,16 @@ class ButtonType(enum.Enum):
     """Enum to define types of button interactions."""
     OPTION = 'OPTION'  # For story option selection
     AI_SCENARIOS = 'AI_SCENARIOS'  # For selecting AI-generated scenarios
+    STORY_RATE = 'STORY_RATE'
+
+def generate_story_rate_button(story: Story) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        InlineKeyboardButton(text='1', callback_data=f'{ButtonType.STORY_RATE}:{story.id}:1'),
+        InlineKeyboardButton(text='2', callback_data=f'{ButtonType.STORY_RATE}:{story.id}:2'),
+        InlineKeyboardButton(text='3', callback_data=f'{ButtonType.STORY_RATE}:{story.id}:3'),
+        InlineKeyboardButton(text='4', callback_data=f'{ButtonType.STORY_RATE}:{story.id}:4'),
+        InlineKeyboardButton(text='5', callback_data=f'{ButtonType.STORY_RATE}:{story.id}:5'),
+    ])
 
 
 def generate_choice_button(section: Section, ai_response: AIStoryResponse) -> InlineKeyboardMarkup:
@@ -125,12 +136,13 @@ async def send_story_section(
             options='\n'.join([f'{option.id}- {option.text}' for option in ai_response.options])
         )
     else:
-        reply_markup = None
+        reply_markup = generate_story_rate_button(section.story)
         text = END_STORY_TEXT_FORMAT.format(
             title=ai_response.title,
             body=ai_response.story,
             options='\n'.join([f'{option.id}- {option.text}' for option in ai_response.options])
         )
+        text += '\n\n به این داستان از ۵ یعنی عالی تا ۱ یعنی خیلی بد نمره بده' 
 
     # Send the message with story text
     await context.bot.send_message(
@@ -460,7 +472,18 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         scenario_id = int(data[0])
         scenario = story_service.get_scenario(scenario_id)
         await new_story_command(update, context, user, scenario_obj=scenario)
-            
+
+    elif btype == ButtonType.STORY_RATE.value:
+        story_id = int(data[0])
+        story = await story_service.get_by_id(story_id)
+        if story.rate == None:
+            await story_service.update_story_rate(story, int(data[1]))
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text='نظرت ثبت شد! ممنون که وقت گذاشتی و داستان رو ارزیابی کردی.\nبا کمک بازخوردت سعی می‌کنم بهتر بشم! ⭐✨',
+                parse_mode="Markdown"
+            )
+
     else:
         # Unknown button type
         logger.warning(f'Unknown button type: {btype} from user {update.effective_user.id}')

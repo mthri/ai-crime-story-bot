@@ -1,10 +1,13 @@
 import json
 from dataclasses import dataclass
+from collections import defaultdict
 
 from core import llm
 from prompts import GENERATE_CRIME_STORY_SCENARIOS_PROMPT
 from config import INPUT_TOKEN_PRICE, OUTPUT_TOKEN_PRICE
 
+
+session = defaultdict(dict)
 
 @dataclass
 class Option:

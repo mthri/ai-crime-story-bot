@@ -67,6 +67,16 @@ class StoryService:
     through interactive stories.
     '''
     
+    async def get_by_id(self, story_id: int) -> Story | None:
+        return Story.get_by_id(story_id)
+    
+    async def update_story_rate(self, story: Story, rate: int) -> None:
+        if 0 > rate > 5:
+            raise Exception('Invalid rate value')
+        
+        story.rate = rate
+        story.save()
+    
     async def create(self, user: User) -> Story:
         '''
         Create a new story for a user.
