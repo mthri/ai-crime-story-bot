@@ -19,6 +19,9 @@ class User(BaseModel):
     charge = FloatField(default=0)
     created_at = DateTimeField(default=datetime.now)
 
+    def __hash__(self):
+        return self.user_id
+
     @property
     def as_dict(self) -> dict:
         return {
@@ -53,6 +56,7 @@ class Story(BaseModel):
     user = ForeignKeyField(User, null=True)
     is_end = BooleanField(default=False)
     created_at = DateTimeField(default=datetime.now)
+    rate = IntegerField(null=True)
 
     def sections_history(self) -> list['Section']:
         query = (
