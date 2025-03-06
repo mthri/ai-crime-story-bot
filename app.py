@@ -514,9 +514,9 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         update: Telegram update object
         context: Telegram context object with the error
     """
-    
-    user = user_service.get_user(update.effective_user.id)
-    user_unlock(user)
+    if update:
+        user = user_service.get_user(update.effective_user.id)
+        user_unlock(user)
     # Format the error traceback
     tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
     tb_string = ''.join(tb_list)
