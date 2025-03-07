@@ -46,7 +46,7 @@ async def generate_crime_story_scenarios() -> list[str]:
     content, input_tokens, output_tokens = await llm(messages)
     #TODO request_cost?
     request_cost = calculate_token_price(input_tokens, output_tokens)
-    
+
     return [scenario for scenario in content.split('\n') if scenario and len(scenario) > 10]
 
 #TODO handle JSON pars error
@@ -71,3 +71,16 @@ def story_parser(text: str) -> AIStoryResponse:
         raw_data=text
     )
 
+def replace_english_numbers_with_farsi(text: str | int) -> str:
+    """Replaces English numbers in a string with Farsi numbers.
+
+    Args:
+        text (str): The input string containing English numbers.
+
+    Returns:
+        str: The string with English numbers replaced by Farsi numbers.
+    """
+    if isinstance(text, int):
+        text = str(text)
+    english_to_farsi = str.maketrans('0123456789', '۰۱۲۳۴۵۶۷۸۹')
+    return text.translate(english_to_farsi)

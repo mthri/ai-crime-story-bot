@@ -16,8 +16,9 @@ from telegram.ext import (
 from config import BALE_BOT_TOKEN, SPONSOR_TEXT, SPONSOR_URL, ADMINS, LOG_CHANNEL_ID
 from services import UserService, StoryService, AIStoryResponse, user_unlock, asession_lock
 from models import User, Story, Section, StoryScenario
+from utils import replace_english_numbers_with_farsi
 
-VERSION = '0.1-alpha'
+VERSION = '0.1.2-alpha'
 
 # Configure logging with more detailed format and file rotation
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -68,7 +69,7 @@ def generate_story_rate_button(story: Story) -> InlineKeyboardMarkup:
     
     for index in range(1, 6):
         option_buttons.append(InlineKeyboardButton(
-            f'{index}',
+            f'{replace_english_numbers_with_farsi(index)}',
             callback_data=f'{ButtonType.STORY_RATE.value}:{story.id}:{index}'
         ))
     
@@ -94,7 +95,7 @@ def generate_choice_button(section: Section, ai_response: AIStoryResponse) -> In
     
     for option in ai_response.options:
         option_buttons.append(InlineKeyboardButton(
-            f'{option.id}',
+            f'{replace_english_numbers_with_farsi(option.id)}',
             callback_data=f'{ButtonType.OPTION.value}:{section.id}:{option.id}'
         ))
     
@@ -155,7 +156,7 @@ async def send_story_section(
     # Send the message with story text
     await context.bot.send_message(
         chat_id=chat_id,
-        text=text,
+        text=replace_english_numbers_with_farsi(text),
         reply_markup=reply_markup,
         parse_mode='Markdown'
     )
@@ -178,7 +179,7 @@ async def send_ai_generated_scenario(update: Update) -> None:
     scenario_buttons = []
     for index, scenario in enumerate(scenarios, start=1):
         scenario_buttons.append(InlineKeyboardButton(
-            f'{index}',
+            f'{replace_english_numbers_with_farsi(index)}',
             callback_data=f'{ButtonType.AI_SCENARIOS.value}:{scenario.id}'
         ))
         text += f'*{index}*- {scenario.text}\n\n'
@@ -188,7 +189,7 @@ async def send_ai_generated_scenario(update: Update) -> None:
     
     # Send the message with scenarios
     await update.message.reply_text(
-       text,
+       replace_english_numbers_with_farsi(text),
        reply_markup=InlineKeyboardMarkup(keyboard),
        parse_mode='Markdown'
     )
@@ -215,7 +216,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=text,
+        text=replace_english_numbers_with_farsi(text),
         parse_mode='Markdown'
     )
     logger.info(f'New user started the bot: {update.effective_user.id}')
@@ -247,7 +248,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 '''
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=text,
+        text=replace_english_numbers_with_farsi(text),
         parse_mode='Markdown'
     )
     logger.info(f'Help command used by user {update.effective_user.id}')
@@ -270,7 +271,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 ver: {VERSION}'''
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=text,
+        text=replace_english_numbers_with_farsi(text),
         parse_mode='Markdown'
     )
     logger.info(f'Status command used by user {update.effective_user.id}')
@@ -330,7 +331,7 @@ async def new_story_command(
     # Send the scenario text
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=scenario.text,
+        text=replace_english_numbers_with_farsi(scenario.text),
         parse_mode='Markdown'
     )
     
@@ -356,7 +357,7 @@ async def new_story_command(
     # Send the first story section
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=text,
+        text=replace_english_numbers_with_farsi(text),
         reply_markup=reply_markup,
         parse_mode='Markdown'
     )
