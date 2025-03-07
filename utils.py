@@ -46,9 +46,10 @@ async def generate_crime_story_scenarios() -> list[str]:
     content, input_tokens, output_tokens = await llm(messages)
     #TODO request_cost?
     request_cost = calculate_token_price(input_tokens, output_tokens)
+    
+    return [scenario for scenario in content.split('\n') if scenario and len(scenario) > 10]
 
-    return [scenario for scenario in content.split('\n') if scenario]
-
+#TODO handle JSON pars error
 def story_parser(text: str) -> AIStoryResponse:
     """Parses a JSON-formatted story response into an AIStoryResponse object.
 
