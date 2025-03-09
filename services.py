@@ -165,11 +165,18 @@ class StoryService:
         ]
         
         logger.debug('Calling LLM for initial story content')
-        content, input_tokens, output_tokens = await llm(messages)
+        for _ in range(3):
+            content, input_tokens, output_tokens = await llm(messages)
+            ai_response = story_parser(content)
+            if ai_response:
+                break
+        else:
+            #TODO switch between model
+            raise Exception('Failed to generate initial story content')
+
         request_cost = calculate_token_price(input_tokens, output_tokens)
         user.charge -= request_cost
         user.save()
-        ai_response = story_parser(content)
         
         # Link scenario to story
         story_scenario.story = story
@@ -293,11 +300,17 @@ class StoryService:
         
         # Get AI response
         logger.debug('Calling LLM for next story section')
-        content, input_tokens, output_tokens = await llm(messages)
+        for _ in range(3):
+            content, input_tokens, output_tokens = await llm(messages)
+            ai_response = story_parser(content)
+            if ai_response:
+                break
+        else:
+            raise Exception('Failed to generate initial story content')
+        
         request_cost = calculate_token_price(input_tokens, output_tokens)
         user.charge -= request_cost
         user.save()
-        ai_response = story_parser(content)
         logger.debug(f'Story end status: {ai_response.is_end}')
 
         # Create sections in database

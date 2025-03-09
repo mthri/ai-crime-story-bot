@@ -1,10 +1,12 @@
 import json
 from dataclasses import dataclass
+import logging
 
 from core import llm
 from prompts import GENERATE_CRIME_STORY_SCENARIOS_PROMPT
 from config import INPUT_TOKEN_PRICE, OUTPUT_TOKEN_PRICE
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Option:
@@ -59,7 +61,11 @@ def story_parser(text: str) -> AIStoryResponse:
     Returns:
         AIStoryResponse: Parsed story data.
     """
-    json_data = json.loads(text.removeprefix('```json').removesuffix('```'))
+    try:
+        json_data = json.loads(text.removeprefix('```json').removesuffix('```'))
+    except json.decoder.JSONDecodeError as e:
+        logging.error(str(e))
+        return None
 
     options = [Option(id=int(key), text=value) for key, value in json_data['options'].items()]
 
