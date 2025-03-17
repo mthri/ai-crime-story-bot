@@ -540,7 +540,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             logger.info(f'Sent error message to user {update.effective_chat.id}')
         await context.bot.send_message(
             chat_id=LOG_CHANNEL_ID,
-            text=error_message
+            text='[CHECK LOG]'
         )
     except Exception as e:
         logger.error(f'Error sending error message: {e}')
