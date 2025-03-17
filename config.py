@@ -9,6 +9,11 @@ INPUT_TOKEN_PRICE = config('INPUT_TOKEN_PRICE', cast=float)
 OUTPUT_TOKEN_PRICE = config('OUTPUT_TOKEN_PRICE', cast=float)
 MAX_RETRIES = config('MAX_RETRIES', cast=int, default=30)
 
+IMAGE_MODEL = config('IMAGE_MODEL', default='dall-e-3')
+IMAGE_SIZE = config('IMAGE_SIZE', default='1024x1024')
+IMAGE_PRICE = config('IMAGE_PRICE', cast=float, default=0.04)
+IMAGE_DIR = config('IMAGE_DIR', default='images')
+
 BALE_BOT_TOKEN = config('BALE_BOT_TOKEN')
 
 SPONSOR_TEXT = config('SPONSOR_TEXT')

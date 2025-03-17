@@ -17,6 +17,7 @@ STORY_PROMPT = '''تو در نقش یک کارآگاه جنایی حرفه‌ا�
 - متن داستان نباید شامل بی احترامی به مقامات جمهوری اسلامی ایران و مقدسات اسلامی باشد.
 - در مرحله آخر باید مقدار is_end برابر با true شود
 - داستان باید از دیدم سوم شخص روایت شود
+- خروجی باید در قالب JSON باشد، بنابراین دقت کن که از کاراکترهایی استفاده نکنی که این قالب را خراب کنند.
 
 
 ```json
@@ -45,4 +46,21 @@ STORY_PROMPT = '''تو در نقش یک کارآگاه جنایی حرفه‌ا�
 
 خروجی کاربر فقط عدد گزینه خواهد بود، مثلا:
 2
+'''
+
+SUMMARIZE_STORY_FOR_IMAGE = '''
+Summarize the following detective story while ensuring the generated prompt avoids any sensitive content that might violate OpenAI's content policies. Focus on key visual elements that define the atmosphere, characters, and setting:
+
+"{story_text}"
+
+The summary should emphasize:
+
+The setting (location, environment, time of day, overall ambiance)
+The main detective (appearance, clothing, expressions, posture)
+Important objects or clues (without direct reference to violence or weapons)
+The overall mood (mysterious, noir, suspenseful, dramatic, but not violent)
+Any unique story elements that visually stand out
+Then, generate a cinematic illustration prompt suitable for DALL·E 3, focusing on atmosphere and storytelling rather than explicit crime details. The image should have a film-noir aesthetic, dramatic lighting, and a painterly or photorealistic style. Avoid any mention of weapons, bodies, or direct depictions of crime scenes.
+
+Ensure the response is less than 1000 characters and only return the image prompt without any extra information.
 '''

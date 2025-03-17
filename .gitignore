@@ -4,3 +4,7 @@ check
 .env
 __pycache__
 ble.db
+ble.db-shm
+ble.db-wal
+bot.log
+images

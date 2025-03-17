@@ -5,8 +5,9 @@ from functools import wraps
 
 from models import User, Story, Section, StoryScenario, fn
 from utils import generate_crime_story_scenarios, story_parser, AIStoryResponse, calculate_token_price
-from core import llm
+from core import llm, generate_image_from_prompt, generate_story_visual_prompt
 from prompts import STORY_PROMPT
+from config import IMAGE_PRICE
 
 
 logger = logging.getLogger(__name__)
@@ -170,6 +171,8 @@ class StoryService:
             ai_response = story_parser(content)
             if ai_response:
                 break
+            else:
+                logger.warning('Failed to parse AI response, retrying...')
         else:
             #TODO switch between model
             raise Exception('Failed to generate initial story content')
@@ -203,6 +206,53 @@ class StoryService:
         
         logger.info(f'Story {story.id} started successfully')
         return system_section, ai_response
+
+    async def get_full_story(self, story: Story) -> str:
+        """
+        Retrieve the full story text for a given story by combining all its sections.
+        
+        Args:
+            story (Story): The story to retrieve the full story text for
+            
+        Returns:
+            str: The full story text
+        """
+        sections = Section.select().where(Section.story == story)
+        full_story = ''
+        for section in sections:
+            try:
+                parsed_section = story_parser(section.text)
+                if parsed_section:
+                    full_story += parsed_section.story + '\n'
+            except Exception:
+                pass
+        
+        return full_story
+
+    async def generate_story_cover(self, story: Story, user: User | None = None) -> str:
+        '''
+        Generate a cover image for a given story by calling the LLM for visual prompts and generating an image from the response.
+        
+        Args:
+            story (Story): The story to generate a cover image for
+            user (User): The user for which to charge the cost of generating the image
+            
+        Returns:
+            str: The path to the generated image
+        '''
+        logger.info(f'Generating cover for story {story.id}')
+        full_story = await self.get_full_story(story)
+        content, input_tokens, output_tokens = await generate_story_visual_prompt(full_story)
+        image_path = await generate_image_from_prompt(content)
+        logger.info(f'Generated cover image for story {story.id} at {image_path}')
+        
+        request_cost = calculate_token_price(input_tokens, output_tokens)
+        if not user:
+            user = story.user
+        user.charge -= request_cost + IMAGE_PRICE
+        user.save()
+        
+        return image_path
 
     def create_scenario(self, story: Story, text: str) -> StoryScenario:
         '''
@@ -305,6 +355,8 @@ class StoryService:
             ai_response = story_parser(content)
             if ai_response:
                 break
+            else:
+                logger.warning('Failed to parse AI response, retrying...')
         else:
             raise Exception('Failed to generate initial story content')
         

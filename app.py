@@ -18,7 +18,7 @@ from services import UserService, StoryService, AIStoryResponse, user_unlock, as
 from models import User, Story, Section, StoryScenario
 from utils import replace_english_numbers_with_farsi
 
-VERSION = '0.1.3-alpha'
+VERSION = '0.2.0-alpha'
 
 # Configure logging with more detailed format and file rotation
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -105,13 +105,8 @@ def generate_choice_button(section: Section, ai_response: AIStoryResponse) -> In
     return InlineKeyboardMarkup(keyboard)
 
 
-async def send_story_section(
-    update: Update, 
-    context: ContextTypes.DEFAULT_TYPE,
-    section: Section, 
-    choice: int,
-    user: User
-) -> None:
+async def send_story_section(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                             section: Section, choice: int, user: User) -> None:
     """
     Send the next section of a story based on user's choice.
     
@@ -496,6 +491,18 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 text='نظرت ثبت شد! ممنون که وقت گذاشتی و داستان رو ارزیابی کردی.\nبا کمک بازخوردت سعی می‌کنم بهتر بشم! ⭐✨',
                 parse_mode="Markdown"
             )
+            #TODO can enable and disable from config
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text='یکم صبر کن، دارم برای داستانت کاور درست می‌کنم. 😊',
+            )
+            image_path = await story_service.generate_story_cover(story, user)
+            with open(image_path, 'rb') as f:
+                await context.bot.send_photo(
+                    chat_id=update.effective_chat.id,
+                    photo=f,
+                    caption='امیداروم از این داستان لذت برده باشی! 🤗'
+                )
 
     else:
         # Unknown button type

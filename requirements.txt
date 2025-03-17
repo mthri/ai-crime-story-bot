@@ -2,3 +2,5 @@ openai
 python-decouple
 peewee
 python-telegram-bot
+aiohttp
+aiofiles
