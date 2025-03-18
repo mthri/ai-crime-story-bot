@@ -4,3 +4,4 @@ peewee
 python-telegram-bot
 aiohttp
 aiofiles
+aiohttp_socks
