@@ -72,6 +72,10 @@ class ButtonType(enum.Enum):
     STORY_RATE = 'STORY_RATE'
     START = 'START'
 
+# New story button
+start_new_story_keyboard = InlineKeyboardMarkup([
+    [InlineKeyboardButton('شروع داستان جدید', callback_data=f'{ButtonType.START.value}:None')]
+])
 
 def generate_story_rate_button(story: Story) -> InlineKeyboardMarkup:
     keyboard = []
@@ -156,7 +160,7 @@ async def send_story_section(update: Update, context: ContextTypes.DEFAULT_TYPE,
             body=ai_response.story,
             options='\n'.join([f'{option.id}- {option.text}' for option in ai_response.options])
         )
-        text += '\n** نظرت درباره این داستان چی‌بود؟ 😃 از ۱ (خیلی بد) تا ۵ (عالی) بهم یه نمره بده! ⭐📖**'
+        text += '** نظرت درباره این داستان چی‌بود؟ 😃 از ۱ (خیلی بد) تا ۵ (عالی) بهم یه نمره بده! ⭐📖**'
 
     # Send the message with story text
     await context.bot.send_message(
@@ -220,13 +224,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 🎭 آماده‌ای وارد دنیای رازآلود من بشی؟ یه معمای جذاب در انتظارت هست! 🕵️‍♂️'''
 
-    keyboard = [
-        [InlineKeyboardButton('شروع یک داستان', callback_data=f'{ButtonType.START.value}:None')]
-    ]
+    
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=replace_english_numbers_with_farsi(text),
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=start_new_story_keyboard,
         parse_mode='Markdown'
     )
     logger.info(f'New user started the bot: {update.effective_user.id}')
@@ -258,13 +260,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 🔍 آماده‌ای رازها رو کشف کنی؟ فقط یه دستور کافیه! 🚀  
 '''
-    keyboard = [
-        [InlineKeyboardButton('شروع یک داستان', callback_data=f'{ButtonType.START.value}:None')]
-    ]
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=replace_english_numbers_with_farsi(text),
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=start_new_story_keyboard,
         parse_mode='Markdown'
     )
     logger.info(f'Help command used by user {update.effective_user.id}')
@@ -509,6 +508,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await story_service.update_story_rate(story, int(data[1]))
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
+                reply_markup=start_new_story_keyboard,
                 text='نظرت ثبت شد! ممنون که وقت گذاشتی و داستان رو ارزیابی کردی.\nبا کمک بازخوردت سعی می‌کنم بهتر بشم! ⭐✨',
                 parse_mode="Markdown"
             )
