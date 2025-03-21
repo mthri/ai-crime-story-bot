@@ -182,7 +182,7 @@ async def send_ai_generated_scenario(update: Update, context: ContextTypes.DEFAU
     # Get unused AI scenarios
     scenarios = await story_service.get_unused_scenarios()
     keyboard = []
-    text = ''
+    text = '*یک داستان رو انتخاب کن:*\n\n' 
     
     # Generate buttons and formatted text for each scenario
     scenario_buttons = []
