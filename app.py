@@ -220,9 +220,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 🎭 آماده‌ای وارد دنیای رازآلود من بشی؟ یه معمای جذاب در انتظارت هست! 🕵️‍♂️'''
 
+    keyboard = [
+        [InlineKeyboardButton('شروع یک داستان', callback_data=f'{ButtonType.START.value}:None')]
+    ]
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=replace_english_numbers_with_farsi(text),
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
     logger.info(f'New user started the bot: {update.effective_user.id}')
