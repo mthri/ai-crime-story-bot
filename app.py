@@ -13,7 +13,15 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 
-from config import BALE_BOT_TOKEN, SPONSOR_TEXT, SPONSOR_URL, ADMINS, LOG_CHANNEL_ID
+from config import (
+    BALE_BOT_TOKEN,
+    SPONSOR_TEXT,
+    SPONSOR_URL,
+    ADMINS_ID,
+    LOG_CHANNEL_ID,
+    STORY_COVER_GENERATION,
+    ADMIN_USERNAME,
+)
 from services import UserService, StoryService, AIStoryResponse, user_unlock, asession_lock
 from models import User, Story, Section, StoryScenario
 from utils import replace_english_numbers_with_farsi
@@ -48,6 +56,7 @@ STORY_TEXT_FORMAT = '''*{title}*
 END_STORY_TEXT_FORMAT = '''*{title}*
 
 {body}
+
 '''
 
 # Create sponsor button
@@ -61,6 +70,7 @@ class ButtonType(enum.Enum):
     OPTION = 'OPTION'  # For story option selection
     AI_SCENARIOS = 'AI_SCENARIOS'  # For selecting AI-generated scenarios
     STORY_RATE = 'STORY_RATE'
+    START = 'START'
 
 
 def generate_story_rate_button(story: Story) -> InlineKeyboardMarkup:
@@ -146,7 +156,7 @@ async def send_story_section(update: Update, context: ContextTypes.DEFAULT_TYPE,
             body=ai_response.story,
             options='\n'.join([f'{option.id}- {option.text}' for option in ai_response.options])
         )
-        text += 'نظرت درباره این داستان چیه؟ 😃 از ۱ (خیلی بد) تا ۵ (عالی) بهم یه نمره بده! ⭐📖' 
+        text += '\n** نظرت درباره این داستان چی‌بود؟ 😃 از ۱ (خیلی بد) تا ۵ (عالی) بهم یه نمره بده! ⭐📖**'
 
     # Send the message with story text
     await context.bot.send_message(
@@ -158,7 +168,7 @@ async def send_story_section(update: Update, context: ContextTypes.DEFAULT_TYPE,
     logger.info(f'Sent story section to user {update.effective_user.id}')
 
 
-async def send_ai_generated_scenario(update: Update) -> None:
+async def send_ai_generated_scenario(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Send a list of AI-generated story scenarios for the user to choose from.
     
@@ -183,10 +193,11 @@ async def send_ai_generated_scenario(update: Update) -> None:
     keyboard.append([sponsor_button])
     
     # Send the message with scenarios
-    await update.message.reply_text(
-       replace_english_numbers_with_farsi(text),
-       reply_markup=InlineKeyboardMarkup(keyboard),
-       parse_mode='Markdown'
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=replace_english_numbers_with_farsi(text),
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='Markdown'
     )
     logger.info(f'Sent AI scenarios to user {update.effective_user.id}')
 
@@ -225,25 +236,31 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         update: Telegram update object
         context: Telegram context object
     """
-    text = '''📌 *راهنمای ربات من*  
+    text = f'''📌 *راهنمای ربات من*  
 
 👋 سلام! اینجا می‌تونی داستان‌های جنایی منحصر‌به‌فرد خودت رو بسازی. برای استفاده از ربات، این دستورات رو در نظر داشته باش:  
 
-🔹 */new* – شروع یک داستان جدید  
+🔹 /new – شروع یک داستان جدید  
 - اگر این دستور رو *بدون متن* بفرستی، هوش مصنوعی چند سناریو جذاب پیشنهاد می‌کنه و تو می‌تونی یکی رو انتخاب کنی.  
 - اگه *بعد از این دستور، سناریوی مدنظرت رو بنویسی*، داستان دقیقاً طبق ایده‌ی تو جلو می‌ره!  
 
 مثال:
+/new یک کارآگاه خصوصی در یک شب بارانی بسته‌ای ناشناس دریافت می‌کند...
 ``` /new یک کارآگاه خصوصی در یک شب بارانی بسته‌ای ناشناس دریافت می‌کند... ```
+
 🔸 بعد از ارسال این پیام، ربات داستان رو بر اساس سناریوی تو ادامه می‌ده!  
 
-📢 *نکته:* این ربات در حال توسعه هست! اگر مشکلی دیدی یا پیشنهادی داشتی، از طریق آیدی @mthri با ما در ارتباط باش.  
+📢 *نکته:* این ربات در حال توسعه هست! اگر مشکلی دیدی یا پیشنهادی داشتی، از طریق آیدی {ADMIN_USERNAME} با ما در ارتباط باش.  
 
 🔍 آماده‌ای رازها رو کشف کنی؟ فقط یه دستور کافیه! 🚀  
 '''
+    keyboard = [
+        [InlineKeyboardButton('شروع یک داستان', callback_data=f'{ButtonType.START.value}:None')]
+    ]
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=replace_english_numbers_with_farsi(text),
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
     logger.info(f'Help command used by user {update.effective_user.id}')
@@ -296,7 +313,7 @@ async def new_story_command(
     
     # If no scenario is provided, show AI-generated options
     if not scenario_text and not scenario_obj:
-        await send_ai_generated_scenario(update)
+        await send_ai_generated_scenario(update, context)
         return None
     
     # Deactivate any active stories for this user
@@ -346,7 +363,7 @@ async def new_story_command(
     text = STORY_TEXT_FORMAT.format(
         title=ai_response.title,
         body=ai_response.story,
-        options='\n'.join([f'{option.id}- {option.text}' for option in ai_response.options])
+        options='\n'.join([f'*{option.id}-* {option.text}' for option in ai_response.options])
     )
 
     # Send the first story section
@@ -491,19 +508,26 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 text='نظرت ثبت شد! ممنون که وقت گذاشتی و داستان رو ارزیابی کردی.\nبا کمک بازخوردت سعی می‌کنم بهتر بشم! ⭐✨',
                 parse_mode="Markdown"
             )
-            #TODO can enable and disable from config
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text='یکم صبر کن، دارم برای داستانت کاور درست می‌کنم. 😊',
-            )
-            image_path = await story_service.generate_story_cover(story, user)
-            with open(image_path, 'rb') as f:
-                await context.bot.send_photo(
+            if STORY_COVER_GENERATION:
+                await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    photo=f,
-                    caption='امیداروم از این داستان لذت برده باشی! 🤗'
+                    text='یکم صبر کن، دارم برای داستانت کاور درست می‌کنم. 😊',
                 )
+                image_path = await story_service.generate_story_cover(story, user)
+                with open(image_path, 'rb') as f:
+                    await context.bot.send_photo(
+                        chat_id=update.effective_chat.id,
+                        photo=f,
+                        caption='امیداروم از این داستان لذت برده باشی! 🤗'
+                    )
 
+    elif btype == ButtonType.START.value:
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id,
+            action='typing'
+        )
+        await send_ai_generated_scenario(update, context)
+    
     else:
         # Unknown button type
         logger.warning(f'Unknown button type: {btype} from user {update.effective_user.id}')

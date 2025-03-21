@@ -8,6 +8,7 @@ from utils import generate_crime_story_scenarios, story_parser, AIStoryResponse,
 from core import llm, generate_image_from_prompt, generate_story_visual_prompt
 from prompts import STORY_PROMPT
 from config import IMAGE_PRICE
+from exceptions import *
 
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ class UserService:
             
         if not user.active:
             logger.warning(f'Attempted to get deactivated user: {user_id}')
-            raise Exception(f'User {user.user_id} is deactivated.')
+            raise UserNotActiveException(f'User {user.user_id} is deactivated.')
             
         return user
 
@@ -76,7 +77,7 @@ class StoryService:
     
     async def update_story_rate(self, story: Story, rate: int) -> None:
         if 0 > rate > 5:
-            raise Exception('Invalid rate value')
+            raise ValueError('Invalid rate value')
         
         story.rate = rate
         story.save()
@@ -166,16 +167,20 @@ class StoryService:
         ]
         
         logger.debug('Calling LLM for initial story content')
-        for _ in range(3):
-            content, input_tokens, output_tokens = await llm(messages)
+        for i in range(3):
+            if i < 2:
+                content, input_tokens, output_tokens = await llm(messages)
+            else:
+                logger.warning('Using secondary model for LLM request')
+                content, input_tokens, output_tokens = await llm(messages, use_secondary_model=True)
+
             ai_response = story_parser(content)
             if ai_response:
                 break
             else:
                 logger.warning('Failed to parse AI response, retrying...')
         else:
-            #TODO switch between model
-            raise Exception('Failed to generate initial story content')
+            raise FailedToGenerateStoryException('Failed to generate initial story content')
 
         request_cost = calculate_token_price(input_tokens, output_tokens)
         user.charge -= request_cost
@@ -350,15 +355,20 @@ class StoryService:
         
         # Get AI response
         logger.debug('Calling LLM for next story section')
-        for _ in range(3):
-            content, input_tokens, output_tokens = await llm(messages)
+        for i in range(3):
+            if i < 2:
+                content, input_tokens, output_tokens = await llm(messages)
+            else:
+                logger.warning('Using secondary model for LLM request')
+                content, input_tokens, output_tokens = await llm(messages, use_secondary_model=True)
+
             ai_response = story_parser(content)
             if ai_response:
                 break
             else:
                 logger.warning('Failed to parse AI response, retrying...')
         else:
-            raise Exception('Failed to generate initial story content')
+            raise FailedToGenerateStoryException('Failed to generate initial story content')
         
         request_cost = calculate_token_price(input_tokens, output_tokens)
         user.charge -= request_cost

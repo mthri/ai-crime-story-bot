@@ -9,9 +9,19 @@ import aiofiles
 from openai import AsyncOpenAI, RateLimitError
 from aiohttp_socks import ProxyConnector
 
-from config import OPENAPI_API_KEY, OPENAPI_URL, OPENAPI_MODEL, MAX_RETRIES, IMAGE_MODEL, IMAGE_SIZE, IMAGE_DIR
+from config import (
+    OPENAPI_API_KEY,
+    OPENAPI_URL,
+    OPENAPI_MODEL,
+    MAX_RETRIES,
+    IMAGE_MODEL,
+    IMAGE_SIZE,
+    IMAGE_DIR,
+    OPENAPI_SECONDARY_MODEL
+)
 from models import LLMHistory
 from prompts import SUMMARIZE_STORY_FOR_IMAGE
+from exceptions import *
 
 logger = logging.getLogger(__name__)
 IMAGE_DIR = Path(IMAGE_DIR)
@@ -45,7 +55,7 @@ async def download_image(image_url: str) -> str:
             else:
                 logger.error(f'Failed to download image: {response.status}')
 
-async def llm(messages: list[dict]) -> tuple[str, int, int]:
+async def llm(messages: list[dict], use_secondary_model: bool = False) -> tuple[str, int, int]:
     """
     Sends a list of messages to the OpenAI API and returns the response content along with token usage.
 
@@ -59,13 +69,14 @@ async def llm(messages: list[dict]) -> tuple[str, int, int]:
         Exception: If the maximum number of retries is reached without a successful response.
     """
     for attempt in range(MAX_RETRIES):
+        model = OPENAPI_MODEL if not use_secondary_model else OPENAPI_SECONDARY_MODEL
         try:
             logger.info(f'Attempt {attempt + 1} of {MAX_RETRIES} to get response from OpenAI API.')
             response = await openai_client.chat.completions.create(
-                model=OPENAPI_MODEL,
+                model=model,
                 messages=messages
             )
-            logger.info('Successfully received response from OpenAI API.')
+            logger.info(f'Successfully received response from OpenAI API.[{model}]')
             input_tokens = response.usage.prompt_tokens
             output_tokens = response.usage.completion_tokens
             content = response.choices[0].message.content.strip()
@@ -80,7 +91,7 @@ async def llm(messages: list[dict]) -> tuple[str, int, int]:
             await asyncio.sleep(20)
 
     logger.error('Max retries reached. Failed to translate text.')
-    raise Exception('Max retries reached. Failed to translate text.')
+    raise NotEnoughCreditsException('Max retries reached. Failed to translate text.')
 
 async def generate_image_from_prompt(prompt: str) -> str:
     """
@@ -121,7 +132,7 @@ async def generate_image_from_prompt(prompt: str) -> str:
             await asyncio.sleep(20)
 
     logger.error('Max retries reached. Failed to generate image.')
-    raise Exception('Max retries reached. Failed to generate image.')
+    raise FailedToGenerateImageException('Max retries reached. Failed to generate image.')
 
 async def generate_story_visual_prompt(story_text: str) -> tuple[str, int, int]:
     """
