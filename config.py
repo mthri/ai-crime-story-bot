@@ -4,7 +4,7 @@ from decouple import config, Csv
 OPENAPI_API_KEY = config('OPENAPI_API_KEY')
 OPENAPI_URL = config('OPENAPI_URL', default='https://api.openai.com/v1')
 OPENAPI_MODEL = config('OPENAPI_MODEL', default='gpt-4o-mini')
-OPENAPI_SECONDARY_MODEL = config('OPENAPI_SECONDARY_MODEL', default='gpt-4.5-preview')
+OPENAPI_SECONDARY_MODEL = config('OPENAPI_SECONDARY_MODEL', default='gpt-4o-mini')
 # price of token per millions
 INPUT_TOKEN_PRICE = config('INPUT_TOKEN_PRICE', cast=float)
 OUTPUT_TOKEN_PRICE = config('OUTPUT_TOKEN_PRICE', cast=float)
