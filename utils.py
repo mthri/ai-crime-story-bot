@@ -1,10 +1,14 @@
 import json
 from dataclasses import dataclass
 import logging
+import asyncio
+
+from telegram import Bot, InlineKeyboardMarkup
 
 from core import llm
 from prompts import GENERATE_CRIME_STORY_SCENARIOS_PROMPT
-from config import INPUT_TOKEN_PRICE, OUTPUT_TOKEN_PRICE
+from config import INPUT_TOKEN_PRICE, OUTPUT_TOKEN_PRICE, BALE_BOT_TOKEN
+from models import User
 
 logger = logging.getLogger(__name__)
 
@@ -90,3 +94,31 @@ def replace_english_numbers_with_farsi(text: str | int) -> str:
         text = str(text)
     english_to_farsi = str.maketrans('0123456789', '۰۱۲۳۴۵۶۷۸۹')
     return text.translate(english_to_farsi)
+
+async def send_message_to_user(user_id: int, message_text: str, bot: Bot, reply_markup: InlineKeyboardMarkup = None) -> None:
+    """Send a message to a user."""
+    try:
+        print(user_id)
+        await bot.send_message(
+            chat_id=user_id,
+            text=message_text,
+            reply_markup=reply_markup
+        )
+        logger.info(f'Message sent to user {user_id}')
+    except Exception as e:
+        logger.warning(f'Failed to send message to user {user_id}: {e}')
+
+def push_notification(text: str, reply_markup: InlineKeyboardMarkup = None) -> None:
+    """
+    Push a notification to all active users.
+
+    Args:
+        text (str): The message text to send.
+        reply_markup (Optional[InlineKeyboardMarkup]): Optional reply markup to attach to the message.
+    """
+    users = User.select(User.user_id).where(User.active == True)
+    bot = Bot(token=BALE_BOT_TOKEN, base_url='https://tapi.bale.ai/')
+
+    loop = asyncio.get_event_loop()
+    tasks = [send_message_to_user(user.user_id, text, bot, reply_markup) for user in users]
+    loop.run_until_complete(asyncio.gather(*tasks))
