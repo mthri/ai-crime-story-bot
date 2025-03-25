@@ -26,7 +26,7 @@ from services import UserService, StoryService, AIStoryResponse, user_unlock, as
 from models import User, Story, Section, StoryScenario
 from utils import replace_english_numbers_with_farsi
 
-VERSION = '0.2.0-alpha'
+VERSION = '0.2.1-alpha'
 
 # Configure logging with more detailed format and file rotation
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -74,7 +74,8 @@ class ButtonType(enum.Enum):
 
 # New story button
 start_new_story_keyboard = InlineKeyboardMarkup([
-    [InlineKeyboardButton('شروع داستان جدید', callback_data=f'{ButtonType.START.value}:None')]
+    [InlineKeyboardButton('شروع داستان جدید', callback_data=f'{ButtonType.START.value}:None')],
+    [InlineKeyboardButton('عضویت در کانال', url='https://ble.ir/iamamir_ir')]
 ])
 
 def generate_story_rate_button(story: Story) -> InlineKeyboardMarkup:
@@ -141,7 +142,7 @@ async def send_story_section(update: Update, context: ContextTypes.DEFAULT_TYPE,
     
     # Generate next section based on choice
     section, ai_response = await story_service.create_section(user, section.story, choice)
-
+    #TODO if error delete section 
     # Mark previous section as used to prevent re-use
     story_service.mark_section_as_used(previous_section)
     
