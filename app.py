@@ -568,10 +568,14 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Send friendly error message to user
     try:
         if update and update.effective_chat:
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton('چی شد؟', url='https://ble.ir/iamamir_ir/3370975053588727431/1742930563916')]
+            ])
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text='اوه نه! یه چیزی این وسط ناجور شد 😅 ولی نگران نباش، دارم بررسیش می‌کنم! 🔍✨ \nیه کم صبر کن و چند دقیقه دیگه دوباره امتحان کن 😉\nبوس بهت 😘',
-                parse_mode='Markdown'
+                parse_mode='Markdown',
+                reply_markup=keyboard
             )
             logger.info(f'Sent error message to user {update.effective_chat.id}')
         await context.bot.send_message(
