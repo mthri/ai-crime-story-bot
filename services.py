@@ -368,7 +368,7 @@ class StoryService:
             else:
                 logger.warning('Failed to parse AI response, retrying...')
         else:
-            raise FailedToGenerateStoryException('Failed to generate initial story content')
+            raise FailedToGenerateStoryException('Failed to generate story section content')
         
         request_cost = calculate_token_price(input_tokens, output_tokens)
         user.charge -= request_cost

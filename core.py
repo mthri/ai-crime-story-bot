@@ -6,7 +6,7 @@ from pathlib import Path
 
 import aiohttp
 import aiofiles
-from openai import AsyncOpenAI, RateLimitError
+from openai import AsyncOpenAI, RateLimitError, InternalServerError
 from aiohttp_socks import ProxyConnector
 
 from config import (
@@ -86,10 +86,14 @@ async def llm(messages: list[dict], use_secondary_model: bool = False) -> tuple[
                 response=content
             )
             return content, input_tokens, output_tokens
+        #TODO or balance is too low
         except RateLimitError:
-            logger.warning('Rate limit exceeded. Retrying after 20 seconds...')
-            await asyncio.sleep(20)
-
+            logger.warning('Rate limit exceeded. Retrying after 2 seconds...')
+            await asyncio.sleep(2)
+        except InternalServerError:
+            logger.warning('Internal server error. Retrying after 2 seconds...')
+            await asyncio.sleep(2)
+    
     logger.error('Max retries reached. Failed to translate text.')
     raise NotEnoughCreditsException('Max retries reached. Failed to translate text.')
 
@@ -128,8 +132,11 @@ async def generate_image_from_prompt(prompt: str) -> str:
             image_path = await download_image(image_url)
             return image_path
         except RateLimitError:
-            logger.warning('Rate limit exceeded. Retrying after 20 seconds...')
-            await asyncio.sleep(20)
+            logger.warning('Rate limit exceeded. Retrying after 2 seconds...')
+            await asyncio.sleep(2)
+        except InternalServerError:
+            logger.warning('Internal server error. Retrying after 2 seconds...')
+            await asyncio.sleep(2)
 
     logger.error('Max retries reached. Failed to generate image.')
     raise FailedToGenerateImageException('Max retries reached. Failed to generate image.')
