@@ -98,7 +98,6 @@ def replace_english_numbers_with_farsi(text: str | int) -> str:
 async def send_message_to_user(user_id: int, message_text: str, bot: Bot, reply_markup: InlineKeyboardMarkup = None) -> None:
     """Send a message to a user."""
     try:
-        print(user_id)
         await bot.send_message(
             chat_id=user_id,
             text=message_text,
