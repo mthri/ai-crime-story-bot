@@ -107,7 +107,7 @@ async def send_message_to_user(user_id: int, message_text: str, bot: Bot, reply_
     except Exception as e:
         logger.warning(f'Failed to send message to user {user_id}: {e}')
 
-def push_notification(text: str, reply_markup: InlineKeyboardMarkup = None) -> None:
+async def push_notification(text: str, reply_markup: InlineKeyboardMarkup = None) -> None:
     """
     Push a notification to all active users.
 
@@ -118,6 +118,5 @@ def push_notification(text: str, reply_markup: InlineKeyboardMarkup = None) -> N
     users = User.select(User.user_id).where(User.active == True)
     bot = Bot(token=BALE_BOT_TOKEN, base_url='https://tapi.bale.ai/')
 
-    loop = asyncio.get_event_loop()
-    tasks = [send_message_to_user(user.user_id, text, bot, reply_markup) for user in users]
-    loop.run_until_complete(asyncio.gather(*tasks))
+    for user in users:
+        await send_message_to_user(user.user_id, text, bot, reply_markup)
