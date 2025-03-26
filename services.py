@@ -162,7 +162,7 @@ class StoryService:
         
         scenario = f'توصیف سناریو اولیه:\n{story_scenario.text}'
         messages = [
-            {'role': 'system', 'content': STORY_PROMPT % (3, 3)},
+            {'role': 'system', 'content': STORY_PROMPT % (3, )},
             {'role': 'user', 'content': scenario}
         ]
         
