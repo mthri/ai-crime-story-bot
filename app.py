@@ -399,8 +399,8 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         context: Telegram context object
     """
     # Ignore messages from groups or channels, only process private messages
-    if update.message.chat.type != 'private':
-        logger.debug(f'Ignored non-private message from {update.effective_user.id}')
+    if not update.message or update.message.chat.type != 'private':
+        logger.info(f'Ignored non-private message from {update.message}')
         return None
     
     # Prevent duplicate processing of messages
