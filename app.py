@@ -300,6 +300,7 @@ ver: {VERSION}'''
 
 
 async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.info(f'Donate command used by user {update.effective_user.id}')
     keyboard = [
         [InlineKeyboardButton('۵ هزار تومان (برنز)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:50000')],
         [InlineKeyboardButton('۱۰ هزار تومان (نقره‌ای)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:10000')],
@@ -323,6 +324,7 @@ async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def ads_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.info(f'Ads command used by user {update.effective_user.id}')
     text = f'''📢 *تبلیغ کسب‌وکار شما در بهترین جای ممکن!*
 
 ما زیر هر داستان یک دکمه اختصاصی قرار دادیم که محل تبلیغ شماست! 🚀  
@@ -341,6 +343,7 @@ async def ads_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.info(f'Support command used by user {update.effective_user.id}')
     keyboard = [
         [InlineKeyboardButton('📢 سفارش تبلیغ', callback_data=f'{ButtonType.ADS.value}')],
         [InlineKeyboardButton('❤️ حمایت مالی (دونیت)', callback_data=f'{ButtonType.DONATE.value}')],
@@ -476,6 +479,7 @@ async def donate_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, amo
         ],
         currency='IRR',
     )
+    logger.info(f'Invoice sent for user {update.effective_user.id} with amount {amount}')
 
 
 @asession_lock
