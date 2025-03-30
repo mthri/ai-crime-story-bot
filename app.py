@@ -2,8 +2,9 @@ import enum
 import logging
 from logging.handlers import RotatingFileHandler
 import traceback
+import uuid
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import (
     Application, 
     CommandHandler, 
@@ -21,6 +22,7 @@ from config import (
     LOG_CHANNEL_ID,
     STORY_COVER_GENERATION,
     ADMIN_USERNAME,
+    WALLET_TOKEN,
 )
 from services import UserService, StoryService, AIStoryResponse, user_unlock, asession_lock
 from models import User, Story, Section, StoryScenario
@@ -71,6 +73,9 @@ class ButtonType(enum.Enum):
     AI_SCENARIOS = 'AI_SCENARIOS'  # For selecting AI-generated scenarios
     STORY_RATE = 'STORY_RATE'
     START = 'START'
+    DONATE = 'DONATE'
+    ADS = 'ADS'
+    DONATE_AMOUNT = 'DONATE_AMOUNT'
 
 # New story button
 start_new_story_keyboard = InlineKeyboardMarkup([
@@ -222,6 +227,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 🔹 در هر مرحله، انتخاب‌هایی داری که مسیر داستان رو تغییر می‌ده. اما مراقب باش، این انتخاب‌ها برگشت‌ناپذیرن! 🤯
 🔹 برای شروع، دستور /new رو بفرست.
 🔹 برای راهنما، دستور /help رو امتحان کن.
+🔹 برای حمایت از ما، دستور /support رو بفرست.
 
 🎭 آماده‌ای وارد دنیای رازآلود من بشی؟ یه معمای جذاب در انتظارت هست! 🕵️‍♂️'''
 
@@ -291,6 +297,70 @@ ver: {VERSION}'''
         parse_mode='Markdown'
     )
     logger.info(f'Status command used by user {update.effective_user.id}')
+
+
+async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    keyboard = [
+        [InlineKeyboardButton('۵ هزار تومان (برنز)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:50000')],
+        [InlineKeyboardButton('۱۰ هزار تومان (نقره‌ای)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:10000')],
+        [InlineKeyboardButton('۵۰ هزار تومان (طلایی)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:500000')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    text = '''💙 *حمایت از ما = حمایت از خیریه‌ها!*
+
+ما متعهد شدیم خدماتمون رایگان باشه، اما برای ادامه کار به حمایت شما نیاز داریم. 
+با دونیت شما، نه‌تنها به پایداری این پروژه کمک می‌کنید، بلکه در صورت تأمین هزینه‌ها، تبلیغات خیریه‌ها رو *رایگان* انجام خواهیم داد. 🎗️
+✅ هر مبلغی که مایلید انتخاب کنید و همراه ما باشید:
+    '''
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=text,
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+async def ads_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    text = f'''📢 *تبلیغ کسب‌وکار شما در بهترین جای ممکن!*
+
+ما زیر هر داستان یک دکمه اختصاصی قرار دادیم که محل تبلیغ شماست! 🚀  
+کاربران با کلیک روی این دکمه، مستقیماً به لینک موردنظر شما هدایت می‌شوند. این یعنی تبلیغ شما در معرض دید هزاران نفر قرار می‌گیرد!  
+
+🎯 *اگر می‌خواهید کسب‌وکارتان دیده شود، همین حالا اقدام کنید!*
+برای سفارش تبلیغ، با آیدی {ADMIN_USERNAME} در ارتباط باشید.
+
+'''
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=text,
+        parse_mode='Markdown'
+    )
+    logger.info(f'Ads command used by user {update.effective_user.id}')
+
+
+async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    keyboard = [
+        [InlineKeyboardButton('📢 سفارش تبلیغ', callback_data=f'{ButtonType.ADS.value}')],
+        [InlineKeyboardButton('❤️ حمایت مالی (دونیت)', callback_data=f'{ButtonType.DONATE.value}')],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    text = '''🎯 ما متعهد شدیم که خدماتمون رایگان باشه، اما برای ادامه کار به حمایت شما نیاز داریم.
+
+✅ *دو راه برای حمایت از ما:*
+
+1️⃣ *سفارش تبلیغ* – تبلیغ کسب‌وکار یا محصولتون رو با ما انجام بدید.
+2️⃣ *حمایت مالی (دونیت)* – اگر هزینه‌ها با دونیت تأمین بشه، تبلیغات خیریه‌ها رو رایگان انجام می‌دیم. یعنی شما هم به خیریه‌ها کمک کردید! 💙
+
+🙏 با حمایت شما، می‌تونیم این مسیر رو ادامه بدیم!'''
+    
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=text,
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
 
 
 async def new_story_command(
@@ -386,7 +456,26 @@ commands = {
     '/help': help_command,
     '/new': new_story_command,
     '/status': status_command,
+    '/support': support_command,
+    '/donate': donate_command,
+    '/ads': ads_command
 }
+
+async def donate_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, amount: int) -> None:
+    await context.bot.send_invoice(
+        chat_id=update.effective_chat.id,
+        title='🌟 حمایت از ما = حمایت از خیریه‌ها!',
+        description=(
+            'با حمایت مالی شما، این پروژه به فعالیت خودش ادامه می‌ده و در صورت تأمین هزینه‌ها، '
+            'ما تبلیغات خیریه‌ها رو به‌صورت رایگان انجام می‌دیم. یعنی شما هم در این کار خیر سهیم هستید! 💙'
+        ),
+        payload=uuid.uuid4().hex,
+        provider_token=WALLET_TOKEN,
+        prices=[
+            LabeledPrice(label='💰 مبلغ حمایت', amount=amount),
+        ],
+        currency='IRR',
+    )
 
 
 @asession_lock
@@ -525,6 +614,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                         photo=f,
                         caption='امیداروم از این داستان لذت برده باشی! 🤗'
                     )
+            await support_command(update, context)
 
     elif btype == ButtonType.START.value:
         await context.bot.send_chat_action(
@@ -532,7 +622,17 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             action='typing'
         )
         await send_ai_generated_scenario(update, context)
-    
+
+    elif btype == ButtonType.ADS.value:
+        await ads_command(update, context)
+
+    elif btype == ButtonType.DONATE.value:
+        await donate_command(update, context)
+
+    elif btype == ButtonType.DONATE_AMOUNT.value:
+        amount = int(data[0])
+        await donate_payment(update, context, amount=amount)
+
     else:
         # Unknown button type
         logger.warning(f'Unknown button type: {btype} from user {update.effective_user.id}')
