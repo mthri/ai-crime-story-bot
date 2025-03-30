@@ -300,9 +300,9 @@ ver: {VERSION}'''
 
 async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
-        [InlineKeyboardButton('🔸 ۵ هزار تومان (برنز)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:50000')],
-        [InlineKeyboardButton('🔹 ۱۰ هزار تومان (نقره‌ای)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:10000')],
-        [InlineKeyboardButton('🟡 ۵۰ هزار تومان (طلایی)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:500000')]
+        [InlineKeyboardButton('۵ هزار تومان (برنز)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:50000')],
+        [InlineKeyboardButton('۱۰ هزار تومان (نقره‌ای)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:10000')],
+        [InlineKeyboardButton('۵۰ هزار تومان (طلایی)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:500000')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -613,6 +613,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                         photo=f,
                         caption='امیداروم از این داستان لذت برده باشی! 🤗'
                     )
+            await support_command(update, context)
 
     elif btype == ButtonType.START.value:
         await context.bot.send_chat_action(
