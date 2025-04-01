@@ -45,3 +45,7 @@ if USE_BALE_MESSENGER:
     BASE_URL = 'https://tapi.bale.ai/'
 else:
     BASE_URL = 'https://api.telegram.org/bot'
+
+BOT_CHANNEL = config('BOT_CHANNEL')
+
+ERROR_MESSAGE_LINK = config('ERROR_MESSAGE_LINK')

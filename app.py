@@ -26,7 +26,9 @@ from config import (
     MAX_DAILY_STORY_CREATION,
     DONATE_URL,
     BASE_URL,
-    MAINTENANCE_MODE
+    MAINTENANCE_MODE,
+    BOT_CHANNEL,
+    ERROR_MESSAGE_LINK,
 )
 from services import UserService, StoryService, AIStoryResponse, user_unlock, asession_lock
 from models import User, Story, Section, StoryScenario
@@ -85,7 +87,7 @@ class ButtonType(enum.Enum):
 # New story button
 start_new_story_keyboard = InlineKeyboardMarkup([
     [InlineKeyboardButton('شروع داستان جدید', callback_data=f'{ButtonType.START.value}:None')],
-    [InlineKeyboardButton('عضویت در کانال', url='https://ble.ir/iamamir_ir')]
+    [InlineKeyboardButton('عضویت در کانال', url=BOT_CHANNEL)]
 ])
 
 def generate_story_rate_button(story: Story) -> InlineKeyboardMarkup:
@@ -697,7 +699,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     try:
         if update and update.effective_chat:
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton('چی شد؟', url='https://ble.ir/iamamir_ir/3370975053588727431/1742930563916')]
+                [InlineKeyboardButton('چی شد؟', url=ERROR_MESSAGE_LINK)]
             ])
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
