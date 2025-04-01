@@ -5,3 +5,4 @@ python-telegram-bot
 aiohttp
 aiofiles
 aiohttp_socks
+psycopg2-binary

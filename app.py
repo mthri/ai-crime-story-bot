@@ -15,7 +15,7 @@ from telegram.ext import (
 )
 
 from config import (
-    BALE_BOT_TOKEN,
+    BOT_TOKEN,
     SPONSOR_TEXT,
     SPONSOR_URL,
     ADMINS_ID,
@@ -23,6 +23,8 @@ from config import (
     STORY_COVER_GENERATION,
     ADMIN_USERNAME,
     WALLET_TOKEN,
+    BASE_URL,
+    MAINTENANCE_MODE
 )
 from services import UserService, StoryService, AIStoryResponse, user_unlock, asession_lock
 from models import User, Story, Section, StoryScenario
@@ -690,6 +692,13 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         logger.error(f'Error sending error message: {e}')
 
 
+async def on_maintenance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text='دارم خودمو آپدیت می‌کنم، یه چیزی تو مایه‌های رژیم و باشگاه رفتن برای رباتا! 🤖💪 یه کم صبر کنی، بهتر از قبل برمی‌گردم! 😎'
+    )
+
+
 def main() -> None:
     """
     Main function to run the bot.
@@ -700,24 +709,27 @@ def main() -> None:
     logger.info('Starting Mystery Bot...')
     
     # Initialize the application with Bale bot token
-    application = Application.builder().token(BALE_BOT_TOKEN)\
-                             .base_url('https://tapi.bale.ai/')\
+    application = Application.builder().token(BOT_TOKEN)\
+                             .base_url(BASE_URL)\
                              .build()
     
-    # Set up command handlers
-    application.add_handler(CommandHandler('help', help_command))
-    application.add_handler(CommandHandler('start', start_command))
-    application.add_handler(CommandHandler('status', status_command))
-    # application.add_handler(CommandHandler('new', new_story_command))
-    
-    # Set up text message handler
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, new_message))
-    
-    # Set up button click handler
-    application.add_handler(CallbackQueryHandler(button_click))
-    
-    # Set up error handler
-    application.add_error_handler(error_handler)
+    if not MAINTENANCE_MODE:
+        # Set up command handlers
+        application.add_handler(CommandHandler('help', help_command))
+        application.add_handler(CommandHandler('start', start_command))
+        application.add_handler(CommandHandler('status', status_command))
+        # application.add_handler(CommandHandler('new', new_story_command))
+        
+        # Set up text message handler
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, new_message))
+        
+        # Set up button click handler
+        application.add_handler(CallbackQueryHandler(button_click))
+        
+        # Set up error handler
+        application.add_error_handler(error_handler)
+    else:
+        application.add_handler(MessageHandler(filters.TEXT, on_maintenance))
     
     # Start the bot
     logger.info('Bot is running!')

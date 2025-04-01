@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict
 from functools import wraps
 
-from models import User, Story, Section, StoryScenario, fn
+from models import User, Story, Section, StoryScenario, Session, Chat, fn
 from utils import generate_crime_story_scenarios, story_parser, AIStoryResponse, calculate_token_price
 from core import llm, generate_image_from_prompt, generate_story_visual_prompt
 from prompts import STORY_PROMPT
@@ -106,7 +106,7 @@ class StoryService:
             list[Section]: List of sections in chronological order
         '''
         logger.debug(f'Retrieving history for story: {story.id}')
-        return story.sections_history()
+        return story.sections_histories()
     
     def as_messages(self, story: Story) -> list[dict]:
         '''
@@ -497,6 +497,57 @@ class StoryService:
         
         logger.info(f'Damage report for user {user.user_id}')
         return stories_count, section_count, user.charge
+
+
+class ChatService:
+    def __init__(self):
+        pass
+    
+    async def __get_session_history(self, session: Session) -> list[Chat]:
+        pass
+    
+    async def __start_new_session(self, user: User) -> Session:
+        pass
+
+    async def __get_current_session(self, user: User) -> Session:
+        pass
+
+    async def __chat_history_as_messages(self, session: Session) -> list[dict]:
+        chat_histories = await self.__get_session_history(session)
+        messages = []
+        for index, message in enumerate(chat_histories):
+            if message.is_system:
+                messages.append({
+                    'role': 'assistant' if index else 'system',
+                    'content': message.text
+                })
+            else:
+                messages.append({
+                    'role': 'user',
+                    'content': message.text
+                })
+
+    async def chat(self, user: User, text: str) -> str:
+        if not text:
+            raise ValueError('Text cannot be empty')
+        
+        session = await self.__get_current_session(user)
+        if not session:
+            session = await self.__start_new_session(user)
+        
+        messages = await self.__chat_history_as_messages(session)
+
+        messages.append({
+            'role': 'user',
+            'content': text
+        })
+
+        content, input_tokens, output_tokens = await llm(messages)
+        request_cost = calculate_token_price(input_tokens, output_tokens)
+        user.charge -= request_cost
+        user.save()
+
+        return content
 
 
 user_service = UserService()
