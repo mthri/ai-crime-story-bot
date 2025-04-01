@@ -23,12 +23,15 @@ from config import (
     STORY_COVER_GENERATION,
     ADMIN_USERNAME,
     WALLET_TOKEN,
+    MAX_DAILY_STORY_CREATION,
+    DONATE_URL,
     BASE_URL,
     MAINTENANCE_MODE
 )
 from services import UserService, StoryService, AIStoryResponse, user_unlock, asession_lock
 from models import User, Story, Section, StoryScenario
 from utils import replace_english_numbers_with_farsi
+from exceptions import DailyStoryLimitExceededException
 
 VERSION = '0.3.0-alpha'
 
@@ -349,6 +352,7 @@ async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     keyboard = [
         [InlineKeyboardButton('📢 سفارش تبلیغ', callback_data=f'{ButtonType.ADS.value}')],
         [InlineKeyboardButton('❤️ حمایت مالی (دونیت)', callback_data=f'{ButtonType.DONATE.value}')],
+        [InlineKeyboardButton('☕ باهم یک قهوه بزنیم؟ (دونیت)', url=DONATE_URL)],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     text = '''🎯 ما متعهد شدیم که خدماتمون رایگان باشه، اما برای ادامه کار به حمایت شما نیاز داریم.
@@ -465,6 +469,7 @@ commands = {
     '/donate': donate_command,
     '/ads': ads_command
 }
+
 
 async def donate_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, amount: int) -> None:
     await context.bot.send_invoice(
@@ -647,7 +652,20 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             text='دنبال چی می‌گردی، شیطون؟ 😏🔍',
             parse_mode='Markdown'
         )
-    
+
+
+async def daily_limit_exception_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    text = f'''سلام عزیزم! 👋
+
+ما اینجا هستیم که رایگان برات داستان بسازیم! ✨ ولی هزینه‌ها زیاده! 😅💸 برای ادامه کار، {replace_english_numbers_with_farsi(MAX_DAILY_STORY_CREATION)} داستان در هر ۲۴ ساعت محدودیت داریم. 🤏
+
+اگه دوست داری همیشه با ما باشی، دستور /support رو ارسال کن! ❤️
+
+ممنون که درک می‌کنی! 🙏🔥'''
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=text,
+    )
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -660,6 +678,10 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if update:
         user = user_service.get_user(update.effective_user.id)
         user_unlock(user)
+    
+    if isinstance(context.error, DailyStoryLimitExceededException):
+        await daily_limit_exception_message(update, context)
+        return None
     # Format the error traceback
     tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
     tb_string = ''.join(tb_list)

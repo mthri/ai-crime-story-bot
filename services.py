@@ -2,12 +2,13 @@ import random
 import logging
 from collections import defaultdict
 from functools import wraps
+from datetime import datetime, timedelta
 
 from models import User, Story, Section, StoryScenario, Session, Chat, fn
 from utils import generate_crime_story_scenarios, story_parser, AIStoryResponse, calculate_token_price
 from core import llm, generate_image_from_prompt, generate_story_visual_prompt
 from prompts import STORY_PROMPT
-from config import IMAGE_PRICE
+from config import IMAGE_PRICE, MAX_DAILY_STORY_CREATION
 from exceptions import *
 
 
@@ -93,6 +94,15 @@ class StoryService:
             Story: The newly created story
         '''
         logger.info(f'Creating new story for user: {user.user_id}')
+        qs = Story.select().where(
+            (Story.user == user) &
+            (Story.created_at > datetime.now() - timedelta(hours=24))
+        )
+        # if freemium user has reached the maximum daily story creation limit
+        if  user.charge < 0.0 and qs.count() >= MAX_DAILY_STORY_CREATION:
+            logger.warning(f'User {user.user_id} has reached the maximum daily story creation limit.')
+            raise DailyStoryLimitExceededException(f'User {user.user_id} has reached the maximum daily story creation limit.') 
+        
         return Story.create(user=user)
     
     def get_history(self, story: Story) -> list[Section]:
