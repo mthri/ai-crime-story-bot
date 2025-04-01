@@ -20,9 +20,12 @@ BALE_BOT_TOKEN = config('BALE_BOT_TOKEN')
 
 SPONSOR_TEXT = config('SPONSOR_TEXT')
 SPONSOR_URL = config('SPONSOR_URL')
+DONATE_URL = config('DONATE_URL')
 
 ADMINS_ID = config('ADMINS', cast=Csv(int), default='')
 ADMIN_USERNAME = config('ADMIN_USERNAME')
 LOG_CHANNEL_ID = config('LOG_CHANNEL_ID', cast=int, default=0)
 
 WALLET_TOKEN = config('WALLET_TOKEN')
+
+MAX_DAILY_STORY_CREATION = config('MAX_DAILY_STORY_CREATION', cast=int, default=2)
