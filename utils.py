@@ -7,7 +7,7 @@ from telegram import Bot, InlineKeyboardMarkup
 
 from core import llm
 from prompts import GENERATE_CRIME_STORY_SCENARIOS_PROMPT
-from config import INPUT_TOKEN_PRICE, OUTPUT_TOKEN_PRICE, BALE_BOT_TOKEN
+from config import INPUT_TOKEN_PRICE, OUTPUT_TOKEN_PRICE, BOT_TOKEN
 from models import User
 
 logger = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ async def push_notification(text: str, reply_markup: InlineKeyboardMarkup = None
         reply_markup (Optional[InlineKeyboardMarkup]): Optional reply markup to attach to the message.
     """
     users = User.select(User.user_id).where(User.active == True)
-    bot = Bot(token=BALE_BOT_TOKEN, base_url='https://tapi.bale.ai/')
+    bot = Bot(token=BOT_TOKEN, base_url='https://tapi.bale.ai/')
 
     for user in users:
         await send_message_to_user(user.user_id, text, bot, reply_markup)
