@@ -39,6 +39,6 @@ if not USE_SQLITE:
 
 USE_BALE_MESSENGER = config('USE_BALE_MESSENGER', cast=bool, default=False)
 if USE_BALE_MESSENGER:
-    BASE_URL = 'https://tapi.bale.ai'
+    BASE_URL = 'https://tapi.bale.ai/'
 else:
     BASE_URL = 'https://api.telegram.org/bot'
