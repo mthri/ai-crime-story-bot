@@ -154,4 +154,10 @@ def import_db_from_json(path: str = 'dump.json'):
         
         # Insert story scenarios in batches
         StoryScenario.bulk_create(scenarios, batch_size=50)
+
+        # Reset Sequences
+        db.execute_sql("SELECT setval('story_id_seq', (SELECT MAX(id) FROM story))")
+        db.execute_sql("SELECT setval('section_id_seq', (SELECT MAX(id) FROM section))")
+        db.execute_sql("SELECT setval('storyscenario_id_seq', (SELECT MAX(id) FROM storyscenario))")
+
         print('Data imported successfully')

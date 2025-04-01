@@ -30,7 +30,7 @@ from services import UserService, StoryService, AIStoryResponse, user_unlock, as
 from models import User, Story, Section, StoryScenario
 from utils import replace_english_numbers_with_farsi
 
-VERSION = '0.2.1-alpha'
+VERSION = '0.3.0-alpha'
 
 # Configure logging with more detailed format and file rotation
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
