@@ -98,8 +98,8 @@ class StoryService:
             (Story.user == user) &
             (Story.created_at > datetime.now() - timedelta(hours=24))
         )
-        #TODO apply user.charge < 0.005 ?
-        if  qs.count() >= MAX_DAILY_STORY_CREATION:
+        # if freemium user has reached the maximum daily story creation limit
+        if  user.charge < 0.0 and qs.count() >= MAX_DAILY_STORY_CREATION:
             logger.warning(f'User {user.user_id} has reached the maximum daily story creation limit.')
             raise DailyStoryLimitExceededException(f'User {user.user_id} has reached the maximum daily story creation limit.') 
         
