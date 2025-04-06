@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 import logging
-import asyncio
+import enum
 
 from telegram import Bot, InlineKeyboardMarkup
 
@@ -24,6 +24,18 @@ class AIStoryResponse:
     options: list[Option]
     is_end: bool
     raw_data: str
+
+class ChatCommand(enum.Enum):
+    CHAT_TEXT = 'CHAT_TEXT'
+    SEND_AI_SCENARIO = 'SEND_AI_SCENARIO'
+    USER_SCENARIO = 'USER_SCENARIO'
+    END_STORY = 'END_STORY'
+
+@dataclass
+class AIChatResponse:
+    COMMAND: ChatCommand
+    TEXT: str
+
 
 def calculate_token_price(input_tokens: int, output_tokens: int) -> float:
     """Calculates the total token price based on input and output token usage.
@@ -79,6 +91,26 @@ def story_parser(text: str) -> AIStoryResponse:
         options=options,
         is_end=json_data['is_end'],
         raw_data=text
+    )
+
+def ai_chat_parser(text: str) -> AIChatResponse:
+    """Parses a JSON-formatted chat response into an AIChatResponse object.
+
+    Args:
+        text (str): The raw JSON string containing the chat response.
+
+    Returns:
+        AIChatResponse: Parsed chat response data.
+    """
+    try:
+        json_data = json.loads(text.removeprefix('```json').removesuffix('```'))
+    except json.decoder.JSONDecodeError as e:
+        logging.error(str(e))
+        return None
+
+    return AIChatResponse(
+        COMMAND=ChatCommand(json_data['COMMAND']),
+        TEXT=json_data['TEXT']
     )
 
 def replace_english_numbers_with_farsi(text: str | int) -> str:

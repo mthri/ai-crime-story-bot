@@ -5,9 +5,10 @@ from functools import wraps
 from datetime import datetime, timedelta
 
 from models import User, Story, Section, StoryScenario, Session, Chat, fn
-from utils import generate_crime_story_scenarios, story_parser, AIStoryResponse, calculate_token_price
+from utils import generate_crime_story_scenarios, story_parser, AIStoryResponse,\
+    calculate_token_price, ai_chat_parser, AIChatResponse, ChatCommand
 from core import llm, generate_image_from_prompt, generate_story_visual_prompt
-from prompts import STORY_PROMPT
+from prompts import STORY_PROMPT, CHAT_PROMPT
 from config import IMAGE_PRICE, MAX_DAILY_STORY_CREATION
 from exceptions import *
 
@@ -510,19 +511,74 @@ class StoryService:
 
 
 class ChatService:
-    def __init__(self):
-        pass
+    '''
+    Service for handling user chat interactions, managing sessions, and processing messages with the LLM.
+    '''
     
     async def __get_session_history(self, session: Session) -> list[Chat]:
-        pass
+        '''
+        Get the chat history for a session.
+        
+        Args:
+            session (Session): The session for which to retrieve the chat history
+            
+        Returns:
+            list[Chat]: The chat history
+        '''
+        logger.info(f'Getting session history for session {session.id}')
+        return session.chat_histories()
     
     async def __start_new_session(self, user: User) -> Session:
-        pass
+        # deactivate previous session
+        '''
+        Starts a new session for the given user, deactivating any active session
+        
+        Args:
+            user (User): The user to start a new session for
+        
+        Returns:
+            Session: The newly created session
+        '''
+        logger.info(f'Starting new session for user {user.user_id}')
+        Session.update(active=False).where(Session.user == user).execute()
+        # create new session
+        session = Session.create(user=user)
+        chat = Chat.create(
+            session=session,
+            user=user,
+            text=CHAT_PROMPT,
+            is_system=True
+        )
+        return session
 
-    async def __get_current_session(self, user: User) -> Session:
-        pass
+    async def __get_current_session(self, user: User) -> Session | None:
+        '''
+        Retrieve the current active session for a user.
+
+        Args:
+            user (User): The user for whom to retrieve the active session.
+
+        Returns:
+            Session | None: The active session if it exists, otherwise None.
+        '''
+
+        logger.info(f'Getting current session for user {user.user_id}')
+        session = Session.select().where((Session.user == user) & (Session.active == True))
+        if session.exists():
+            return session.get()
+        return None
 
     async def __chat_history_as_messages(self, session: Session) -> list[dict]:
+        '''
+        Convert chat history for a session to message format for the LLM.
+
+        Args:
+            session (Session): The session for which to retrieve the chat history.
+
+        Returns:
+            list[dict]: Messages in the format expected by the LLM.
+        '''
+        logger.info(f'Converting chat history for session {session.id}')
         chat_histories = await self.__get_session_history(session)
         messages = []
         for index, message in enumerate(chat_histories):
@@ -536,11 +592,26 @@ class ChatService:
                     'role': 'user',
                     'content': message.text
                 })
+        return messages
 
-    async def chat(self, user: User, text: str) -> str:
+    async def chat(self, user: User, text: str) -> AIChatResponse:
+        '''
+        Process a user's chat message and respond accordingly.
+
+        Args:
+            user (User): The user who sent the message
+            text (str): The message text
+
+        Returns:
+            AIChatResponse: The parsed AI response
+
+        Raises:
+            ValueError: If the message text is empty
+        '''
         if not text:
             raise ValueError('Text cannot be empty')
         
+        logger.info(f'Processing chat message from user {user.user_id}')
         session = await self.__get_current_session(user)
         if not session:
             session = await self.__start_new_session(user)
@@ -552,12 +623,32 @@ class ChatService:
             'content': text
         })
 
+        logger.info(f'Sending messages to LLM for processing')
         content, input_tokens, output_tokens = await llm(messages)
         request_cost = calculate_token_price(input_tokens, output_tokens)
         user.charge -= request_cost
         user.save()
+        #TODO handle if have problem
+        response = ai_chat_parser(content)
+        
+        Chat.create(
+            session=session,
+            user=user,
+            text=text,
+            is_system=False
+        )
+        Chat.create(
+            session=session,
+            user=user,
+            text=content,
+            is_system=True
+        )
+        if response.COMMAND != ChatCommand.CHAT_TEXT:
+            # for closing current session
+            logger.info(f'Closing session {session.id}')
+            await self.__start_new_session(user)
 
-        return content
+        return response
 
 
 user_service = UserService()

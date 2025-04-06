@@ -30,9 +30,9 @@ from config import (
     BOT_CHANNEL,
     ERROR_MESSAGE_LINK,
 )
-from services import UserService, StoryService, AIStoryResponse, user_unlock, asession_lock
+from services import UserService, StoryService, AIStoryResponse, ChatService, user_unlock, asession_lock
 from models import User, Story, Section, StoryScenario
-from utils import replace_english_numbers_with_farsi
+from utils import replace_english_numbers_with_farsi, ChatCommand
 from exceptions import DailyStoryLimitExceededException
 
 VERSION = '0.3.0-alpha'
@@ -52,6 +52,7 @@ logger = logging.getLogger('app')
 # Initialize services
 user_service = UserService()
 story_service = StoryService()
+chat_service = ChatService()
 
 # Message templates for story formatting
 STORY_TEXT_FORMAT = '''*{title}*
@@ -473,6 +474,20 @@ commands = {
 }
 
 
+async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE, user: User) -> None:
+    response = await chat_service.chat(user, update.message.text)
+    if response.COMMAND == ChatCommand.CHAT_TEXT:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=response.TEXT
+        )
+    elif response.COMMAND == ChatCommand.SEND_AI_SCENARIO:
+        await send_ai_generated_scenario(update, context)
+    elif response.COMMAND == ChatCommand.USER_SCENARIO:
+        await new_story_command(update, context, user, scenario_text=response.TEXT)
+    elif response.COMMAND == ChatCommand.END_STORY:
+        await new_story_command(update, context, user)
+
 async def donate_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, amount: int) -> None:
     await context.bot.send_invoice(
         chat_id=update.effective_chat.id,
@@ -536,11 +551,12 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         
     
     # Default response for unrecognized messages
-    await update.message.reply_text(
-       'متوجه منظورت نشدم 🤔\nبهتر از دستور /help استفاده کنی.',
-       parse_mode='Markdown'
-    )
-    logger.info(f'Sent help suggestion to user {update.effective_user.id}')
+    # await update.message.reply_text(
+    #    'متوجه منظورت نشدم 🤔\nبهتر از دستور /help استفاده کنی.',
+    #    parse_mode='Markdown'
+    # )
+    # logger.info(f'Sent help suggestion to user {update.effective_user.id}')
+    await chat(update, context, user)
 
 
 @asession_lock
