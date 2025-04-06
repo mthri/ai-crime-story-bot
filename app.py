@@ -483,6 +483,11 @@ commands = {
 
 
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE, user: User) -> None:
+    # Show typing indicator
+    await context.bot.send_chat_action(
+        chat_id=update.effective_chat.id,
+        action='typing'
+    )
     response = await chat_service.chat(user, update.message.text)
     if response.COMMAND == ChatCommand.CHAT_TEXT:
         await context.bot.send_message(
