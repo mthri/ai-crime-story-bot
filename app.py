@@ -271,7 +271,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 🔸 بعد از ارسال این پیام، ربات داستان رو بر اساس سناریوی تو ادامه می‌ده!  
 
-📢 *نکته:* این ربات در حال توسعه هست! اگر مشکلی دیدی یا پیشنهادی داشتی، از طریق آیدی {ADMIN_USERNAME} با ما در ارتباط باش.  
+📢 *نکته:* این ربات در حال توسعه هست! اگر مشکلی دیدی یا پیشنهادی داشتی، از طریق [این آیدی]({ADMIN_USERNAME}) با ما در ارتباط باش.  
 
 🔍 آماده‌ای رازها رو کشف کنی؟ فقط یه دستور کافیه! 🚀  
 '''
@@ -339,7 +339,7 @@ async def ads_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 کاربران با کلیک روی این دکمه، مستقیماً به لینک موردنظر شما هدایت می‌شوند. این یعنی تبلیغ شما در معرض دید هزاران نفر قرار می‌گیرد!  
 
 🎯 *اگر می‌خواهید کسب‌وکارتان دیده شود، همین حالا اقدام کنید!*
-برای سفارش تبلیغ، با آیدی {ADMIN_USERNAME} در ارتباط باشید.
+برای سفارش تبلیغ، با [این آیدی]({ADMIN_USERNAME}) در ارتباط باشید.
 
 '''
     await context.bot.send_message(
@@ -487,7 +487,8 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE, user: User) -
     if response.COMMAND == ChatCommand.CHAT_TEXT:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=response.TEXT
+            text=response.TEXT,
+            parse_mode="Markdown"
         )
     elif response.COMMAND == ChatCommand.SEND_AI_SCENARIO:
         await send_ai_generated_scenario(update, context)
