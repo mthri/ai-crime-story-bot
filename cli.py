@@ -1,9 +1,7 @@
+import argparse
 import logging
-import asyncio
 import json
 from datetime import datetime
-
-from peewee import chunked 
 
 from telegram import Bot
 from models import User, Story, StoryScenario, Section, LLMHistory, Session, Chat, db
@@ -161,3 +159,25 @@ def import_db_from_json(path: str = 'dump.json'):
         db.execute_sql("SELECT setval('storyscenario_id_seq', (SELECT MAX(id) FROM storyscenario))")
 
         print('Data imported successfully')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest='command')
+
+    report_parser = subparsers.add_parser('report', help='Generate a system report')
+
+    dump_parser = subparsers.add_parser('dump', help='Dump database to a JSON file')
+    dump_parser.add_argument('--path', type=str, default='dump.json', help='Path to the output file')
+
+    import_parser = subparsers.add_parser('import', help='Import data from a JSON file')
+    import_parser.add_argument('--path', type=str, default='dump.json', help='Path to the input file')
+
+    args = parser.parse_args()
+
+    if args.command == 'dump':
+        export_db_as_json(args.path)
+    elif args.command == 'import':
+        import_db_from_json(args.path)
+    elif args.command == 'report':
+        report()
