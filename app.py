@@ -378,7 +378,7 @@ async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def new_story_command(
     update: Update, 
     context: ContextTypes.DEFAULT_TYPE,
-    user: User,
+    user: User = None,
     scenario_text: str | None = None, 
     scenario_obj: StoryScenario | None = None,
 ) -> None:
@@ -397,6 +397,14 @@ async def new_story_command(
         action='typing'
     )
     
+    if not user:
+        user = user_service.get_user(
+            update.effective_user.id,
+            update.effective_user.username,
+            update.effective_user.first_name,
+            update.effective_user.last_name
+        )
+
     # If no scenario is provided, show AI-generated options
     if not scenario_text and not scenario_obj:
         await send_ai_generated_scenario(update, context)
@@ -758,7 +766,10 @@ def main() -> None:
         application.add_handler(CommandHandler('help', help_command))
         application.add_handler(CommandHandler('start', start_command))
         application.add_handler(CommandHandler('status', status_command))
-        # application.add_handler(CommandHandler('new', new_story_command))
+        application.add_handler(CommandHandler('support', support_command))
+        application.add_handler(CommandHandler('donate', donate_command))
+        application.add_handler(CommandHandler('ads', ads_command))
+        application.add_handler(CommandHandler('new', new_story_command))
         
         # Set up text message handler
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, new_message))
