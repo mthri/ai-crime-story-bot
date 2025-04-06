@@ -141,14 +141,14 @@ class LLMHistory(BaseModel):
 class Session(BaseModel):
     id = BigAutoField()
     user = ForeignKeyField(User, null=True)
-    session_id = CharField(max_length=32, default=uuid.uuid4)
+    session_id = UUIDField(default=uuid.uuid4)
     active = BooleanField(default=True)
     created_at = DateTimeField(default=datetime.now)
 
     def chat_histories(self) -> list['Chat']:
         query = (
             self.chats
-            .order_by(Section.created_at)
+            .order_by(Chat.created_at)
         )
         return list(query)
 
@@ -163,7 +163,7 @@ class Chat(BaseModel):
 
 
 def create_tables() -> None:
-    db.create_tables([User, Story, StoryScenario, Section, LLMHistory])
+    db.create_tables([User, Story, StoryScenario, Section, LLMHistory, Session, Chat])
 
 if __name__ == '__main__':
     create_tables()
