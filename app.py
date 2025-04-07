@@ -375,13 +375,9 @@ async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
 
-async def new_story_command(
-    update: Update, 
-    context: ContextTypes.DEFAULT_TYPE,
-    user: User = None,
-    scenario_text: str | None = None, 
-    scenario_obj: StoryScenario | None = None,
-) -> None:
+async def new_story_command(update: Update,  context: ContextTypes.DEFAULT_TYPE,
+                            user: User = None, scenario_text: str | None = None, 
+                            scenario_obj: StoryScenario | None = None) -> None:
     """
     Start a new story based on user input or AI-generated scenario.
     
@@ -404,7 +400,9 @@ async def new_story_command(
             update.effective_user.first_name,
             update.effective_user.last_name
         )
-
+    
+    await chat_service.deactivate_current_session(user)
+    
     # If no scenario is provided, show AI-generated options
     if not scenario_text and not scenario_obj:
         await send_ai_generated_scenario(update, context)
@@ -717,12 +715,12 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Format the error traceback
     tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
     tb_string = ''.join(tb_list)
-    
+    error_code = uuid.uuid4().hex
     # Get update info if available
     update_str = update.to_dict() if update else 'No update'
     
     # Log detailed error information
-    error_message = f'Exception: {context.error}\n\nTraceback:\n{tb_string}\n\nUpdate: {update_str}'
+    error_message = f'{error_code} Exception: {context.error}\n\nTraceback:\n{tb_string}\n\nUpdate: {update_str}'
     logger.error(error_message)
     
     # Send friendly error message to user
@@ -733,14 +731,19 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             ])
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text='اوه نه! یه چیزی این وسط ناجور شد 😅 ولی نگران نباش، دارم بررسیش می‌کنم! 🔍✨ \nیه کم صبر کن و چند دقیقه دیگه دوباره امتحان کن 😉\nبوس بهت 😘',
+                text=('اوه نه! یه چیزی این وسط ناجور شد 😅 ولی نگران نباش، دارم بررسیش می‌کنم! 🔍✨ \n'
+                      'یه کم صبر کن و چند دقیقه دیگه دوباره امتحان کن 😉\n'
+                      'بوس بهت 😘\n\n'
+                      f'کد پیگیری: ```{error_code}```'
+                    ),
                 parse_mode='Markdown',
                 reply_markup=keyboard
             )
             logger.info(f'Sent error message to user {update.effective_chat.id}')
         await context.bot.send_message(
             chat_id=LOG_CHANNEL_ID,
-            text='[CHECK LOG]'
+            text=f' {type(context.error)}\n```{error_code}```',
+            parse_mode='Markdown'
         )
     except Exception as e:
         logger.error(f'Error sending error message: {e}')

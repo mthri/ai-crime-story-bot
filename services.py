@@ -594,6 +594,19 @@ class ChatService:
                 })
         return messages
 
+    async def deactivate_current_session(self, user: User) -> None:
+        '''
+        Deactivate the current active session for a user.
+
+        Args:
+            user (User): The user whose active session should be deactivated.
+        '''
+        logger.info(f'Deactivate active session for user {user.user_id}')
+        session = await self.__get_current_session(user)
+        if session:
+            session.active = False
+            session.save()
+
     async def chat(self, user: User, text: str) -> AIChatResponse:
         '''
         Process a user's chat message and respond accordingly.
@@ -618,6 +631,9 @@ class ChatService:
         
         messages = await self.__chat_history_as_messages(session)
 
+        if len(messages) > 30:
+            logger.warning(f'Session {session.id} has more than 30 messages!')
+
         messages.append({
             'role': 'user',
             'content': text
@@ -638,18 +654,13 @@ class ChatService:
                 logger.warning('Failed to parse AI response, retrying...')
         else:
             raise FailedToGenerateChatException('Failed to generate chat response')
-        
+
         request_cost = calculate_token_price(input_tokens, output_tokens)
         user.charge -= request_cost
         user.save()
         
-        Chat.create( session=session, user=user, text=text, is_system=False)
-        Chat.create( session=session, user=user, text=content, is_system=True)
-        
-        if ai_response.COMMAND != ChatCommand.CHAT_TEXT:
-            # for closing current session
-            logger.info(f'Closing session {session.id}')
-            await self.__start_new_session(user)
+        Chat.create(session=session, user=user, text=text, is_system=False)
+        Chat.create(session=session, user=user, text=content, is_system=True)
 
         return ai_response
 
