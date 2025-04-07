@@ -624,31 +624,34 @@ class ChatService:
         })
 
         logger.info(f'Sending messages to LLM for processing')
-        content, input_tokens, output_tokens = await llm(messages)
+        for i in range(3):
+            if i < 2:
+                content, input_tokens, output_tokens = await llm(messages)
+            else:
+                logger.warning('Using secondary model for LLM request')
+                content, input_tokens, output_tokens = await llm(messages, use_secondary_model=True)
+
+            ai_response = ai_chat_parser(content)
+            if ai_response:
+                break
+            else:
+                logger.warning('Failed to parse AI response, retrying...')
+        else:
+            raise FailedToGenerateChatException('Failed to generate chat response')
+        
         request_cost = calculate_token_price(input_tokens, output_tokens)
         user.charge -= request_cost
         user.save()
-        #TODO handle if have problem
-        response = ai_chat_parser(content)
         
-        Chat.create(
-            session=session,
-            user=user,
-            text=text,
-            is_system=False
-        )
-        Chat.create(
-            session=session,
-            user=user,
-            text=content,
-            is_system=True
-        )
-        if response.COMMAND != ChatCommand.CHAT_TEXT:
+        Chat.create( session=session, user=user, text=text, is_system=False)
+        Chat.create( session=session, user=user, text=content, is_system=True)
+        
+        if ai_response.COMMAND != ChatCommand.CHAT_TEXT:
             # for closing current session
             logger.info(f'Closing session {session.id}')
             await self.__start_new_session(user)
 
-        return response
+        return ai_response
 
 
 user_service = UserService()
