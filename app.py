@@ -498,7 +498,7 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     """
     # Ignore messages from groups or channels, only process private messages
     if not update.message or update.message.chat.type != 'private':
-        logger.info(f'Ignored non-private message from {update.message}')
+        logger.info(f'Ignored non-private message.')
         return None
     
     # Prevent duplicate processing of messages
