@@ -95,7 +95,7 @@ Set `USE_SQLITE=True` in your `.env` file. The database file will be created aut
 #### Creating Database Tables
 After configuring your database choice, run:
 ```bash
-python model.py
+python models.py
 ```
 This will create all the necessary database tables before running the bot.
 
@@ -109,7 +109,7 @@ Note: You will need to create a `requirements.txt` file with the following packa
 - openai
 - python-decouple
 - psycopg2-binary
-- sqlalchemy
+- peewee
 
 ### Running the Bot
 Start the bot with:
