@@ -29,6 +29,7 @@ from config import (
     MAINTENANCE_MODE,
     BOT_CHANNEL,
     ERROR_MESSAGE_LINK,
+    AI_CHAT,
 )
 from services import UserService, StoryService, AIStoryResponse, ChatService, user_unlock, asession_lock
 from models import User, Story, Section, StoryScenario
@@ -562,13 +563,15 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             return None
         
     
-    # Default response for unrecognized messages
-    # await update.message.reply_text(
-    #    'متوجه منظورت نشدم 🤔\nبهتر از دستور /help استفاده کنی.',
-    #    parse_mode='Markdown'
-    # )
-    # logger.info(f'Sent help suggestion to user {update.effective_user.id}')
-    await chat(update, context, user)
+    if AI_CHAT:
+        await chat(update, context, user)
+    else:
+        # Default response for unrecognized messages
+        await update.message.reply_text(
+            'متوجه منظورت نشدم 🤔\nبهتر از دستور /help استفاده کنی.',
+            parse_mode='Markdown'
+        )
+        logger.info(f'Sent help suggestion to user {update.effective_user.id}')
 
 
 @asession_lock
