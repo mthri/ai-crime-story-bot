@@ -78,6 +78,10 @@ BOT_CHANNEL=https://t.me/your_channel
 
 # Error Handling
 ERROR_MESSAGE_LINK=https://t.me/your_error_channel
+
+# AI Chat feature flag
+# Set to False to disable AI chat feature
+AI_CHAT=True
 ```
 
 ### Database Setup
