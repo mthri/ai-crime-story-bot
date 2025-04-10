@@ -85,6 +85,7 @@ class ButtonType(enum.Enum):
     DONATE = 'DONATE'
     ADS = 'ADS'
     DONATE_AMOUNT = 'DONATE_AMOUNT'
+    REPORT_AI_CHAT_MSG = 'REPORT_AI_CHAT_MSG'
 
 # New story button
 start_new_story_keyboard = InlineKeyboardMarkup([
@@ -492,7 +493,8 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE, user: User) -
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=response.TEXT,
-            parse_mode="Markdown"
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([InlineKeyboardButton('گزارش این پیام', callback_data=f'{ButtonType.REPORT_AI_CHAT_MSG.value}')])
         )
     elif response.COMMAND == ChatCommand.SEND_AI_SCENARIO:
         await send_ai_generated_scenario(update, context)
@@ -500,6 +502,7 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE, user: User) -
         await new_story_command(update, context, user, scenario_text=response.TEXT)
     elif response.COMMAND == ChatCommand.END_STORY:
         await new_story_command(update, context, user)
+
 
 async def donate_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, amount: int) -> None:
     await context.bot.send_invoice(
@@ -699,6 +702,7 @@ async def daily_limit_exception_message(update: Update, context: ContextTypes.DE
         chat_id=update.effective_chat.id,
         text=text,
     )
+
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
