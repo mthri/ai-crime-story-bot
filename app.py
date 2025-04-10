@@ -494,7 +494,7 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE, user: User) -
             chat_id=update.effective_chat.id,
             text=response.TEXT,
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([InlineKeyboardButton('گزارش این پیام', callback_data=f'{ButtonType.REPORT_AI_CHAT_MSG.value}')])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('گزارش این پیام', callback_data=f'{ButtonType.REPORT_AI_CHAT_MSG.value}')]])
         )
     elif response.COMMAND == ChatCommand.SEND_AI_SCENARIO:
         await send_ai_generated_scenario(update, context)
