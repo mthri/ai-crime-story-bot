@@ -26,7 +26,7 @@ class UserService:
     '''
     
     def get_user(self, user_id: int, username: str | None = None, first_name: str | None = None,
-                 last_name: str | None = None) -> User:
+                 last_name: str | None = None, only_active: bool = True) -> User:
         '''
         Get a user by ID or create if not exists.
         
@@ -49,11 +49,14 @@ class UserService:
         else:
             logger.debug(f'Retrieved existing user with ID: {user_id}')
             
-        if not user.active:
+        if only_active and not user.active:
             logger.warning(f'Attempted to get deactivated user: {user_id}')
             raise UserNotActiveException(f'User {user.user_id} is deactivated.')
             
         return user
+    
+    def get_by_username(self, username: str) -> User:
+        return User.get(User.username == username)
 
     def deactivate(self, user: User) -> None:
         '''

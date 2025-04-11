@@ -34,7 +34,8 @@ from config import (
 from services import UserService, StoryService, AIStoryResponse, ChatService, user_unlock, asession_lock
 from models import User, Story, Section, StoryScenario
 from utils import replace_english_numbers_with_farsi, ChatCommand
-from exceptions import DailyStoryLimitExceededException
+from exceptions import DailyStoryLimitExceededException, UserNotActiveException
+from core import get_account_credit
 
 VERSION = '0.3.0-alpha'
 
@@ -93,6 +94,7 @@ start_new_story_keyboard = InlineKeyboardMarkup([
     [InlineKeyboardButton('عضویت در کانال', url=BOT_CHANNEL)]
 ])
 
+# --- user commands ---
 
 def generate_story_rate_button(story: Story) -> InlineKeyboardMarkup:
     keyboard = []
@@ -471,6 +473,58 @@ async def new_story_command(update: Update,  context: ContextTypes.DEFAULT_TYPE,
     logger.info(f'New story started for user {update.effective_user.id}')
 
 
+# --- admin commands ---
+
+async def admin_charge_command(update: Update, context: ContextTypes.DEFAULT_TYPE, *args) -> None:
+    credit = await get_account_credit()
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f'Account credit: {credit}'
+    )
+
+
+async def admin_report_command(update: Update, context: ContextTypes.DEFAULT_TYPE, *args) -> None:
+    raise NotImplementedError
+
+
+async def admin_user_action_command(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str, action: str, *args) -> None:
+    if user_id.isnumeric():
+        user = user_service.get_user(int(user_id))
+    else:
+        user = user_service.get_by_username(user_id)
+    
+    if action == 'chrge':
+        amount = int(args[0])
+        user.charge += amount
+        user.save()
+    elif action == 'ban':
+        user.active = False
+        user.save()
+    elif action == 'unban':
+        user.active = True
+        user.save()
+    elif action == 'info':
+        report = await story_service.damage_report(user)
+        text = f'''ID: {user.user_id}
+Username: {user.username}
+First name: {user.first_name}
+Last name: {user.last_name}
+Active: {user.active}
+Charge: {user.charge}
+Joined at: {user.created_at}
+Story Count: {report[0]}
+Section Count: {report[1]}'''
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=text
+        )
+    
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f'Done!'
+    )
+
+
 # Command handler mapping
 commands = {
     '/start': start_command,
@@ -479,7 +533,10 @@ commands = {
     '/status': status_command,
     '/support': support_command,
     '/donate': donate_command,
-    '/ads': ads_command
+    '/ads': ads_command,
+    '!chrg': admin_charge_command,
+    '!rprt': admin_report_command,
+    '!usr': admin_user_action_command
 }
 
 
@@ -568,6 +625,12 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE,
             await commands[command](update, context)
             return None
     
+    # Handle Admin commands
+    if update.message.text.startswith('!') and user.user_id in ADMINS_ID:
+        command, *args = update.message.text.split()
+        if command in commands:
+            return await commands[command](update, context, *args)
+
     if AI_CHAT:
         await chat(update, context, user)
     else:
@@ -717,12 +780,22 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         context: Telegram context object with the error
     """
     if update:
-        user = user_service.get_user(update.effective_user.id)
+        user = user_service.get_user(update.effective_user.id, only_active=False)
         user_unlock(user)
     
     if isinstance(context.error, DailyStoryLimitExceededException):
         await daily_limit_exception_message(update, context)
         return None
+    elif isinstance(context.error, UserNotActiveException):
+        try:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text='حساب کاربری شما غیرفعال شده است. با ادمین تماس بگیرید. 🤝'
+            )
+        except Exception as e:
+            logger.exception(e)
+        return None
+    
     # Format the error traceback
     tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
     tb_string = ''.join(tb_list)

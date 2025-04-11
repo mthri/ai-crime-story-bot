@@ -163,3 +163,7 @@ async def generate_story_visual_prompt(story_text: str) -> tuple[str, int, int]:
     content, input_tokens, output_tokens = await llm(messages)
 
     return content, input_tokens, output_tokens
+
+
+async def get_account_credit() -> float:
+    raise NotImplementedError

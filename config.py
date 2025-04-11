@@ -22,7 +22,7 @@ SPONSOR_TEXT = config('SPONSOR_TEXT')
 SPONSOR_URL = config('SPONSOR_URL')
 DONATE_URL = config('DONATE_URL')
 
-ADMINS_ID = config('ADMINS', cast=Csv(int), default='')
+ADMINS_ID = config('ADMINS_ID', cast=Csv(int), default='')
 ADMIN_USERNAME = config('ADMIN_USERNAME')
 LOG_CHANNEL_ID = config('LOG_CHANNEL_ID', cast=int, default=0)
 
