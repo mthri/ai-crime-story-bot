@@ -379,7 +379,7 @@ async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def new_story_command(update: Update,  context: ContextTypes.DEFAULT_TYPE,
-                            user: User = None, scenario_text: str | None = None, 
+                            user: User | None = None, scenario_text: str | None = None, 
                             scenario_obj: StoryScenario | None = None) -> None:
     """
     Start a new story based on user input or AI-generated scenario.
@@ -524,7 +524,8 @@ async def donate_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, amo
 
 
 @asession_lock
-async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                      user: User | None = None) -> None:
     """
     Handle new messages from users.
     
@@ -544,12 +545,13 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     answered_messages.add(update.message.id)
 
-    user = user_service.get_user(
-        update.effective_user.id,
-        update.effective_user.username,
-        update.effective_user.first_name,
-        update.effective_user.last_name
-    )
+    if not user:
+        user = user_service.get_user(
+            update.effective_user.id,
+            update.effective_user.username,
+            update.effective_user.first_name,
+            update.effective_user.last_name
+        )
     
     # Log the incoming message
     logger.info(f'Received message from {update.effective_user.id}: {update.message.text[:20]}...')
@@ -565,7 +567,6 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         elif command in commands:
             await commands[command](update, context)
             return None
-        
     
     if AI_CHAT:
         await chat(update, context, user)
@@ -579,7 +580,8 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 @asession_lock
-async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                       user: User | None = None) -> None:
     """
     Handle inline button clicks from users.
     
@@ -594,13 +596,14 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     answered_messages.add(update.update_id)
     
-    # Get user information
-    user = user_service.get_user(
-        update.effective_user.id,
-        update.effective_user.username,
-        update.effective_user.first_name,
-        update.effective_user.last_name
-    )
+    if not user:
+        # Get user information
+        user = user_service.get_user(
+            update.effective_user.id,
+            update.effective_user.username,
+            update.effective_user.first_name,
+            update.effective_user.last_name
+        )
     
     # Process button data
     query = update.callback_query

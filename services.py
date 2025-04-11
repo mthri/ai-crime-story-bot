@@ -707,7 +707,7 @@ def is_user_lock(user):
     return session[user]['is_processing']
 
 
-def asession_lock(func):
+def asession_lock(func, only_private=True):
     """Decorator that prevents concurrent execution of an async function 
     for the same user by implementing a session lock.
 
@@ -725,6 +725,10 @@ def asession_lock(func):
     """
     @wraps(func)
     async def wrapped(update, *args, **kwargs):
+        if only_private and update.message and update.message.chat.type != 'private':
+            logger.info(f'Ignored non-private message')
+            return None
+        
         user = user_service.get_user(
             update.effective_user.id,
             update.effective_user.username,
@@ -737,7 +741,7 @@ def asession_lock(func):
             return None
         
         user_lock(user)
-        await func(update, *args, **kwargs)
+        await func(update, *args, user=user, **kwargs)
         user_unlock(user)
 
     return wrapped
