@@ -93,6 +93,7 @@ start_new_story_keyboard = InlineKeyboardMarkup([
     [InlineKeyboardButton('عضویت در کانال', url=BOT_CHANNEL)]
 ])
 
+
 def generate_story_rate_button(story: Story) -> InlineKeyboardMarkup:
     keyboard = []
     option_buttons = []

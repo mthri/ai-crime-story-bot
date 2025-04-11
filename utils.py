@@ -67,8 +67,7 @@ async def generate_crime_story_scenarios() -> list[str]:
 
     return [scenario for scenario in content.split('\n') if scenario and len(scenario) > 10]
 
-#TODO handle JSON pars error
-def story_parser(text: str) -> AIStoryResponse:
+def story_parser(text: str) -> AIStoryResponse | None:
     """Parses a JSON-formatted story response into an AIStoryResponse object.
 
     Args:
@@ -79,21 +78,19 @@ def story_parser(text: str) -> AIStoryResponse:
     """
     try:
         json_data = json.loads(text.removeprefix('```json').removesuffix('```'))
-    except json.decoder.JSONDecodeError as e:
+        options = [Option(id=int(key), text=value) for key, value in json_data['options'].items()]
+        return AIStoryResponse(
+            title=json_data['title'],
+            story=json_data['story'],
+            options=options,
+            is_end=json_data['is_end'],
+            raw_data=text
+        )
+    except (json.decoder.JSONDecodeError, ValueError) as e:
         logging.error(str(e))
         return None
 
-    options = [Option(id=int(key), text=value) for key, value in json_data['options'].items()]
-
-    return AIStoryResponse(
-        title=json_data['title'],
-        story=json_data['story'],
-        options=options,
-        is_end=json_data['is_end'],
-        raw_data=text
-    )
-
-def ai_chat_parser(text: str) -> AIChatResponse:
+def ai_chat_parser(text: str) -> AIChatResponse | None:
     """Parses a JSON-formatted chat response into an AIChatResponse object.
 
     Args:
@@ -104,14 +101,13 @@ def ai_chat_parser(text: str) -> AIChatResponse:
     """
     try:
         json_data = json.loads(text.removeprefix('```json').removesuffix('```'))
+        return AIChatResponse(
+            COMMAND=ChatCommand(json_data['COMMAND']),
+            TEXT=json_data['TEXT']
+        )
     except json.decoder.JSONDecodeError as e:
         logging.error(str(e))
         return None
-
-    return AIChatResponse(
-        COMMAND=ChatCommand(json_data['COMMAND']),
-        TEXT=json_data['TEXT']
-    )
 
 def replace_english_numbers_with_farsi(text: str | int) -> str:
     """Replaces English numbers in a string with Farsi numbers.
@@ -127,7 +123,8 @@ def replace_english_numbers_with_farsi(text: str | int) -> str:
     english_to_farsi = str.maketrans('0123456789', '۰۱۲۳۴۵۶۷۸۹')
     return text.translate(english_to_farsi)
 
-async def send_message_to_user(user_id: int, message_text: str, bot: Bot, reply_markup: InlineKeyboardMarkup = None) -> None:
+async def send_message_to_user(user_id: int, message_text: str, bot: Bot,
+                               reply_markup: InlineKeyboardMarkup | None = None) -> None:
     """Send a message to a user."""
     try:
         await bot.send_message(
@@ -139,7 +136,7 @@ async def send_message_to_user(user_id: int, message_text: str, bot: Bot, reply_
     except Exception as e:
         logger.warning(f'Failed to send message to user {user_id}: {e}')
 
-async def push_notification(text: str, reply_markup: InlineKeyboardMarkup = None) -> None:
+async def push_notification(text: str, reply_markup: InlineKeyboardMarkup | None = None) -> None:
     """
     Push a notification to all active users.
 

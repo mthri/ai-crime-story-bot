@@ -25,7 +25,8 @@ class UserService:
     in the system.
     '''
     
-    def get_user(self, user_id: int, username: str = None, first_name: str = None, last_name: str = None) -> User:
+    def get_user(self, user_id: int, username: str | None = None, first_name: str | None = None,
+                 last_name: str | None = None) -> User:
         '''
         Get a user by ID or create if not exists.
         
