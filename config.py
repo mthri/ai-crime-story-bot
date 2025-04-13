@@ -21,6 +21,7 @@ BOT_TOKEN = config('BOT_TOKEN')
 SPONSOR_TEXT = config('SPONSOR_TEXT')
 SPONSOR_URL = config('SPONSOR_URL')
 DONATE_URL = config('DONATE_URL')
+IN_APP_DONATE = config('IN_APP_DONATE', cast=bool, default=False)
 
 ADMINS_ID = config('ADMINS_ID', cast=Csv(int), default='')
 ADMIN_USERNAME = config('ADMIN_USERNAME')
