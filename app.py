@@ -751,6 +751,19 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE,
     elif btype == ButtonType.DONATE_AMOUNT.value:
         amount = int(data[0])
         await donate_payment(update, context, amount=amount)
+    
+    elif btype == ButtonType.REPORT_AI_CHAT_MSG.value:
+        logger.info(f'User with chat ID {update.effective_chat.id} reported the following bot message: "{update.callback_query.message.text}"')
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='با کمک بازخوردت سعی می‌کنم بهتر بشم! ⭐✨',
+            parse_mode="Markdown"
+        )
+        await context.bot.send_message(
+            chat_id=LOG_CHANNEL_ID,
+            text=f'کاربر: {update.effective_chat.id}\nمتن پیام ربات:\n{update.callback_query.message.text}',
+            parse_mode='Markdown'
+        )
 
     else:
         # Unknown button type
