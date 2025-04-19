@@ -17,7 +17,8 @@ from config import (
     IMAGE_MODEL,
     IMAGE_SIZE,
     IMAGE_DIR,
-    OPENAPI_SECONDARY_MODEL
+    OPENAPI_SECONDARY_MODEL,
+    LOG_LLM,
 )
 from models import LLMHistory
 from prompts import SUMMARIZE_STORY_FOR_IMAGE
@@ -80,11 +81,12 @@ async def llm(messages: list[dict], use_secondary_model: bool = False) -> tuple[
             input_tokens = response.usage.prompt_tokens
             output_tokens = response.usage.completion_tokens
             content = response.choices[0].message.content.strip()
-            LLMHistory.create(
-                model=OPENAPI_MODEL,
-                prompt=json.dumps(messages, ensure_ascii=False),
-                response=content
-            )
+            if LOG_LLM:
+                LLMHistory.create(
+                    model=OPENAPI_MODEL,
+                    prompt=json.dumps(messages, ensure_ascii=False),
+                    response=content
+                )
             return content, input_tokens, output_tokens
         #TODO or balance is too low
         except RateLimitError:
@@ -124,11 +126,12 @@ async def generate_image_from_prompt(prompt: str) -> str:
             )
             logger.info('Successfully received response from OpenAI API.')
             image_url = response.data[0].url
-            LLMHistory.create(
-                model=IMAGE_MODEL,
-                prompt=prompt,
-                response=image_url
-            )
+            if LOG_LLM:
+                LLMHistory.create(
+                    model=IMAGE_MODEL,
+                    prompt=prompt,
+                    response=image_url
+                )
             image_path = await download_image(image_url)
             return image_path
         except RateLimitError:

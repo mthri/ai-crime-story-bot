@@ -52,3 +52,5 @@ BOT_CHANNEL = config('BOT_CHANNEL')
 ERROR_MESSAGE_LINK = config('ERROR_MESSAGE_LINK')
 
 AI_CHAT = config('AI_CHAT', cast=bool, default=True)
+
+LOG_LLM = config('LOG_LLM', cast=bool, default=False)
