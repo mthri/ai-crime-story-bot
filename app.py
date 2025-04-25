@@ -15,7 +15,7 @@ from telegram.ext import (
 )
 
 from config import (
-    BALE_BOT_TOKEN,
+    BOT_TOKEN,
     SPONSOR_TEXT,
     SPONSOR_URL,
     ADMINS_ID,
@@ -25,13 +25,20 @@ from config import (
     WALLET_TOKEN,
     MAX_DAILY_STORY_CREATION,
     DONATE_URL,
+    BASE_URL,
+    MAINTENANCE_MODE,
+    BOT_CHANNEL,
+    ERROR_MESSAGE_LINK,
+    AI_CHAT,
+    IN_APP_DONATE
 )
-from services import UserService, StoryService, AIStoryResponse, user_unlock, asession_lock
+from services import UserService, StoryService, AIStoryResponse, ChatService, user_unlock, asession_lock
 from models import User, Story, Section, StoryScenario
-from utils import replace_english_numbers_with_farsi
-from exceptions import DailyStoryLimitExceededException
+from utils import replace_english_numbers_with_farsi, ChatCommand
+from exceptions import DailyStoryLimitExceededException, UserNotActiveException
+from core import get_account_credit
 
-VERSION = '0.2.3-alpha'
+VERSION = '0.3.0-alpha'
 
 # Configure logging with more detailed format and file rotation
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -48,6 +55,7 @@ logger = logging.getLogger('app')
 # Initialize services
 user_service = UserService()
 story_service = StoryService()
+chat_service = ChatService()
 
 # Message templates for story formatting
 STORY_TEXT_FORMAT = '''*{title}*
@@ -79,12 +87,15 @@ class ButtonType(enum.Enum):
     DONATE = 'DONATE'
     ADS = 'ADS'
     DONATE_AMOUNT = 'DONATE_AMOUNT'
+    REPORT_AI_CHAT_MSG = 'REPORT_AI_CHAT_MSG'
 
 # New story button
 start_new_story_keyboard = InlineKeyboardMarkup([
     [InlineKeyboardButton('شروع داستان جدید', callback_data=f'{ButtonType.START.value}:None')],
-    [InlineKeyboardButton('عضویت در کانال', url='https://ble.ir/iamamir_ir')]
+    [InlineKeyboardButton('عضویت در کانال', url=BOT_CHANNEL)]
 ])
+
+# --- user commands ---
 
 def generate_story_rate_button(story: Story) -> InlineKeyboardMarkup:
     keyboard = []
@@ -228,9 +239,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 🔹 هر داستان مخصوص تو خلق می‌شه، هیچ‌کس دیگه‌ای تجربه‌ی مشابهی نخواهد داشت!
 🔹 در هر مرحله، انتخاب‌هایی داری که مسیر داستان رو تغییر می‌ده. اما مراقب باش، این انتخاب‌ها برگشت‌ناپذیرن! 🤯
-🔹 برای شروع، دستور /new رو بفرست.
+🔹 برای شروع، دستور /new رو بفرست یا هر سناریویی دوست داری، فقط متنشو بفرست 😊
 🔹 برای راهنما، دستور /help رو امتحان کن.
 🔹 برای حمایت از ما، دستور /support رو بفرست.
+
+*آها راستی! با این ربات می‌تونی گپ بزنی 😀*
 
 🎭 آماده‌ای وارد دنیای رازآلود من بشی؟ یه معمای جذاب در انتظارت هست! 🕵️‍♂️'''
 
@@ -258,15 +271,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 🔹 /new – شروع یک داستان جدید  
 - اگر این دستور رو *بدون متن* بفرستی، هوش مصنوعی چند سناریو جذاب پیشنهاد می‌کنه و تو می‌تونی یکی رو انتخاب کنی.  
-- اگه *بعد از این دستور، سناریوی مدنظرت رو بنویسی*، داستان دقیقاً طبق ایده‌ی تو جلو می‌ره!  
 
-مثال:
-/new یک کارآگاه خصوصی در یک شب بارانی بسته‌ای ناشناس دریافت می‌کند...
-``` /new یک کارآگاه خصوصی در یک شب بارانی بسته‌ای ناشناس دریافت می‌کند... ```
+🔹 می‌خوای تو شروع‌کننده‌ی داستان باشی؟ پس فقط سناریوتو بفرست! 😄
+ 
 
-🔸 بعد از ارسال این پیام، ربات داستان رو بر اساس سناریوی تو ادامه می‌ده!  
-
-📢 *نکته:* این ربات در حال توسعه هست! اگر مشکلی دیدی یا پیشنهادی داشتی، از طریق آیدی {ADMIN_USERNAME} با ما در ارتباط باش.  
+📢 *نکته:* این ربات در حال توسعه هست! اگر مشکلی دیدی یا پیشنهادی داشتی، از طریق [این آیدی]({ADMIN_USERNAME}) با ما در ارتباط باش.  
 
 🔍 آماده‌ای رازها رو کشف کنی؟ فقط یه دستور کافیه! 🚀  
 '''
@@ -304,6 +313,12 @@ ver: {VERSION}'''
 
 async def donate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f'Donate command used by user {update.effective_user.id}')
+    if not IN_APP_DONATE:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f'برای حمایت مالی از ما می‌تونید از طریق لینک زیر اقدام کنید 😊\n\n{DONATE_URL}' 
+        )
+        return None
     keyboard = [
         [InlineKeyboardButton('۵ هزار تومان (برنز)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:50000')],
         [InlineKeyboardButton('۱۰ هزار تومان (نقره‌ای)', callback_data=f'{ButtonType.DONATE_AMOUNT.value}:10000')],
@@ -334,7 +349,7 @@ async def ads_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 کاربران با کلیک روی این دکمه، مستقیماً به لینک موردنظر شما هدایت می‌شوند. این یعنی تبلیغ شما در معرض دید هزاران نفر قرار می‌گیرد!  
 
 🎯 *اگر می‌خواهید کسب‌وکارتان دیده شود، همین حالا اقدام کنید!*
-برای سفارش تبلیغ، با آیدی {ADMIN_USERNAME} در ارتباط باشید.
+برای سفارش تبلیغ، با [این آیدی]({ADMIN_USERNAME}) در ارتباط باشید.
 
 '''
     await context.bot.send_message(
@@ -370,13 +385,9 @@ async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
 
-async def new_story_command(
-    update: Update, 
-    context: ContextTypes.DEFAULT_TYPE,
-    user: User,
-    scenario_text: str | None = None, 
-    scenario_obj: StoryScenario | None = None,
-) -> None:
+async def new_story_command(update: Update,  context: ContextTypes.DEFAULT_TYPE,
+                            user: User | None = None, scenario_text: str | None = None, 
+                            scenario_obj: StoryScenario | None = None) -> None:
     """
     Start a new story based on user input or AI-generated scenario.
     
@@ -391,6 +402,16 @@ async def new_story_command(
         chat_id=update.effective_chat.id,
         action='typing'
     )
+    
+    if not user:
+        user = user_service.get_user(
+            update.effective_user.id,
+            update.effective_user.username,
+            update.effective_user.first_name,
+            update.effective_user.last_name
+        )
+    
+    await chat_service.deactivate_current_session(user)
     
     # If no scenario is provided, show AI-generated options
     if not scenario_text and not scenario_obj:
@@ -457,6 +478,58 @@ async def new_story_command(
     logger.info(f'New story started for user {update.effective_user.id}')
 
 
+# --- admin commands ---
+
+async def admin_charge_command(update: Update, context: ContextTypes.DEFAULT_TYPE, *args) -> None:
+    credit = await get_account_credit()
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f'Account credit: {credit}'
+    )
+
+
+async def admin_report_command(update: Update, context: ContextTypes.DEFAULT_TYPE, *args) -> None:
+    raise NotImplementedError
+
+
+async def admin_user_action_command(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str, action: str, *args) -> None:
+    if user_id.isnumeric():
+        user = user_service.get_user(int(user_id))
+    else:
+        user = user_service.get_by_username(user_id)
+    
+    if action == 'chrge':
+        amount = int(args[0])
+        user.charge += amount
+        user.save()
+    elif action == 'ban':
+        user.active = False
+        user.save()
+    elif action == 'unban':
+        user.active = True
+        user.save()
+    elif action == 'info':
+        report = await story_service.damage_report(user)
+        text = f'''ID: {user.user_id}
+Username: {user.username}
+First name: {user.first_name}
+Last name: {user.last_name}
+Active: {user.active}
+Charge: {user.charge}
+Joined at: {user.created_at}
+Story Count: {report[0]}
+Section Count: {report[1]}'''
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=text
+        )
+    
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f'Done!'
+    )
+
+
 # Command handler mapping
 commands = {
     '/start': start_command,
@@ -465,8 +538,33 @@ commands = {
     '/status': status_command,
     '/support': support_command,
     '/donate': donate_command,
-    '/ads': ads_command
+    '/ads': ads_command,
+    '!chrg': admin_charge_command,
+    '!rprt': admin_report_command,
+    '!usr': admin_user_action_command
 }
+
+
+async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE, user: User) -> None:
+    # Show typing indicator
+    await context.bot.send_chat_action(
+        chat_id=update.effective_chat.id,
+        action='typing'
+    )
+    response = await chat_service.chat(user, update.message.text)
+    if response.COMMAND == ChatCommand.CHAT_TEXT:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=response.TEXT,
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('گزارش این پیام', callback_data=f'{ButtonType.REPORT_AI_CHAT_MSG.value}')]])
+        )
+    elif response.COMMAND == ChatCommand.SEND_AI_SCENARIO:
+        await send_ai_generated_scenario(update, context)
+    elif response.COMMAND == ChatCommand.USER_SCENARIO:
+        await new_story_command(update, context, user, scenario_text=response.TEXT)
+    elif response.COMMAND == ChatCommand.END_STORY:
+        await new_story_command(update, context, user)
 
 
 async def donate_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, amount: int) -> None:
@@ -488,7 +586,8 @@ async def donate_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, amo
 
 
 @asession_lock
-async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                      user: User | None = None) -> None:
     """
     Handle new messages from users.
     
@@ -498,7 +597,7 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     """
     # Ignore messages from groups or channels, only process private messages
     if not update.message or update.message.chat.type != 'private':
-        logger.info(f'Ignored non-private message.')
+        logger.info(f'Ignored non-private message')
         return None
     
     # Prevent duplicate processing of messages
@@ -508,12 +607,13 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     answered_messages.add(update.message.id)
 
-    user = user_service.get_user(
-        update.effective_user.id,
-        update.effective_user.username,
-        update.effective_user.first_name,
-        update.effective_user.last_name
-    )
+    if not user:
+        user = user_service.get_user(
+            update.effective_user.id,
+            update.effective_user.username,
+            update.effective_user.first_name,
+            update.effective_user.last_name
+        )
     
     # Log the incoming message
     logger.info(f'Received message from {update.effective_user.id}: {update.message.text[:20]}...')
@@ -529,18 +629,27 @@ async def new_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         elif command in commands:
             await commands[command](update, context)
             return None
-        
     
-    # Default response for unrecognized messages
-    await update.message.reply_text(
-       'متوجه منظورت نشدم 🤔\nبهتر از دستور /help استفاده کنی.',
-       parse_mode='Markdown'
-    )
-    logger.info(f'Sent help suggestion to user {update.effective_user.id}')
+    # Handle Admin commands
+    if update.message.text.startswith('!') and user.user_id in ADMINS_ID:
+        command, *args = update.message.text.split()
+        if command in commands:
+            return await commands[command](update, context, *args)
+
+    if AI_CHAT:
+        await chat(update, context, user)
+    else:
+        # Default response for unrecognized messages
+        await update.message.reply_text(
+            'متوجه منظورت نشدم 🤔\nبهتر از دستور /help استفاده کنی.',
+            parse_mode='Markdown'
+        )
+        logger.info(f'Sent help suggestion to user {update.effective_user.id}')
 
 
 @asession_lock
-async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                       user: User | None = None) -> None:
     """
     Handle inline button clicks from users.
     
@@ -555,13 +664,14 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     answered_messages.add(update.update_id)
     
-    # Get user information
-    user = user_service.get_user(
-        update.effective_user.id,
-        update.effective_user.username,
-        update.effective_user.first_name,
-        update.effective_user.last_name
-    )
+    if not user:
+        # Get user information
+        user = user_service.get_user(
+            update.effective_user.id,
+            update.effective_user.username,
+            update.effective_user.first_name,
+            update.effective_user.last_name
+        )
     
     # Process button data
     query = update.callback_query
@@ -641,6 +751,19 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     elif btype == ButtonType.DONATE_AMOUNT.value:
         amount = int(data[0])
         await donate_payment(update, context, amount=amount)
+    
+    elif btype == ButtonType.REPORT_AI_CHAT_MSG.value:
+        logger.info(f'User with chat ID {update.effective_chat.id} reported the following bot message: "{update.callback_query.message.text}"')
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='با کمک بازخوردت سعی می‌کنم بهتر بشم! ⭐✨',
+            parse_mode="Markdown"
+        )
+        await context.bot.send_message(
+            chat_id=LOG_CHANNEL_ID,
+            text=f'کاربر: {update.effective_chat.id}\nمتن پیام ربات:\n{update.callback_query.message.text}',
+            parse_mode='Markdown'
+        )
 
     else:
         # Unknown button type
@@ -665,6 +788,7 @@ async def daily_limit_exception_message(update: Update, context: ContextTypes.DE
         text=text,
     )
 
+
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handle errors that occur during message processing.
@@ -674,42 +798,64 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         context: Telegram context object with the error
     """
     if update:
-        user = user_service.get_user(update.effective_user.id)
+        user = user_service.get_user(update.effective_user.id, only_active=False)
         user_unlock(user)
     
     if isinstance(context.error, DailyStoryLimitExceededException):
         await daily_limit_exception_message(update, context)
         return None
+    elif isinstance(context.error, UserNotActiveException):
+        try:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text='حساب کاربری شما غیرفعال شده است. با ادمین تماس بگیرید. 🤝'
+            )
+        except Exception as e:
+            logger.exception(e)
+        return None
+    
     # Format the error traceback
     tb_list = traceback.format_exception(None, context.error, context.error.__traceback__)
     tb_string = ''.join(tb_list)
-    
+    error_code = uuid.uuid4().hex
     # Get update info if available
     update_str = update.to_dict() if update else 'No update'
     
     # Log detailed error information
-    error_message = f'Exception: {context.error}\n\nTraceback:\n{tb_string}\n\nUpdate: {update_str}'
+    error_message = f'{error_code} Exception: {context.error}\n\nTraceback:\n{tb_string}\n\nUpdate: {update_str}'
     logger.error(error_message)
     
     # Send friendly error message to user
     try:
         if update and update.effective_chat:
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton('چی شد؟', url='https://ble.ir/iamamir_ir/3370975053588727431/1742930563916')]
+                [InlineKeyboardButton('چی شد؟', url=ERROR_MESSAGE_LINK)]
             ])
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text='اوه نه! یه چیزی این وسط ناجور شد 😅 ولی نگران نباش، دارم بررسیش می‌کنم! 🔍✨ \nیه کم صبر کن و چند دقیقه دیگه دوباره امتحان کن 😉\nبوس بهت 😘',
+                text=('اوه نه! یه چیزی این وسط ناجور شد 😅 ولی نگران نباش، دارم بررسیش می‌کنم! 🔍✨ \n'
+                      'یه کم صبر کن و چند دقیقه دیگه دوباره امتحان کن 😉\n'
+                      'بوس بهت 😘\n\n'
+                      f'کد پیگیری: ```{error_code}```'
+                    ),
                 parse_mode='Markdown',
                 reply_markup=keyboard
             )
             logger.info(f'Sent error message to user {update.effective_chat.id}')
         await context.bot.send_message(
             chat_id=LOG_CHANNEL_ID,
-            text='[CHECK LOG]'
+            text=f' {type(context.error)}\n```{error_code}```',
+            parse_mode='Markdown'
         )
     except Exception as e:
         logger.error(f'Error sending error message: {e}')
+
+
+async def on_maintenance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text='دارم خودمو آپدیت می‌کنم، یه چیزی تو مایه‌های رژیم و باشگاه رفتن برای رباتا! 🤖💪 یه کم صبر کنی، بهتر از قبل برمی‌گردم! 😎'
+    )
 
 
 def main() -> None:
@@ -722,24 +868,30 @@ def main() -> None:
     logger.info('Starting Mystery Bot...')
     
     # Initialize the application with Bale bot token
-    application = Application.builder().token(BALE_BOT_TOKEN)\
-                             .base_url('https://tapi.bale.ai/')\
+    application = Application.builder().token(BOT_TOKEN)\
+                             .base_url(BASE_URL)\
                              .build()
     
-    # Set up command handlers
-    application.add_handler(CommandHandler('help', help_command))
-    application.add_handler(CommandHandler('start', start_command))
-    application.add_handler(CommandHandler('status', status_command))
-    # application.add_handler(CommandHandler('new', new_story_command))
-    
-    # Set up text message handler
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, new_message))
-    
-    # Set up button click handler
-    application.add_handler(CallbackQueryHandler(button_click))
-    
-    # Set up error handler
-    application.add_error_handler(error_handler)
+    if not MAINTENANCE_MODE:
+        # Set up command handlers
+        application.add_handler(CommandHandler('help', help_command))
+        application.add_handler(CommandHandler('start', start_command))
+        application.add_handler(CommandHandler('status', status_command))
+        application.add_handler(CommandHandler('support', support_command))
+        application.add_handler(CommandHandler('donate', donate_command))
+        application.add_handler(CommandHandler('ads', ads_command))
+        application.add_handler(CommandHandler('new', new_story_command))
+        
+        # Set up text message handler
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, new_message))
+        
+        # Set up button click handler
+        application.add_handler(CallbackQueryHandler(button_click))
+        
+        # Set up error handler
+        application.add_error_handler(error_handler)
+    else:
+        application.add_handler(MessageHandler(filters.TEXT, on_maintenance))
     
     # Start the bot
     logger.info('Bot is running!')

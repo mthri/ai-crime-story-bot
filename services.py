@@ -4,10 +4,11 @@ from collections import defaultdict
 from functools import wraps
 from datetime import datetime, timedelta
 
-from models import User, Story, Section, StoryScenario, fn
-from utils import generate_crime_story_scenarios, story_parser, AIStoryResponse, calculate_token_price
+from models import User, Story, Section, StoryScenario, Session, Chat, fn
+from utils import generate_crime_story_scenarios, story_parser, AIStoryResponse,\
+    calculate_token_price, ai_chat_parser, AIChatResponse, ChatCommand
 from core import llm, generate_image_from_prompt, generate_story_visual_prompt
-from prompts import STORY_PROMPT
+from prompts import STORY_PROMPT, CHAT_PROMPT
 from config import IMAGE_PRICE, MAX_DAILY_STORY_CREATION
 from exceptions import *
 
@@ -24,7 +25,8 @@ class UserService:
     in the system.
     '''
     
-    def get_user(self, user_id: int, username: str = None, first_name: str = None, last_name: str = None) -> User:
+    def get_user(self, user_id: int, username: str | None = None, first_name: str | None = None,
+                 last_name: str | None = None, only_active: bool = True) -> User:
         '''
         Get a user by ID or create if not exists.
         
@@ -47,11 +49,14 @@ class UserService:
         else:
             logger.debug(f'Retrieved existing user with ID: {user_id}')
             
-        if not user.active:
+        if only_active and not user.active:
             logger.warning(f'Attempted to get deactivated user: {user_id}')
             raise UserNotActiveException(f'User {user.user_id} is deactivated.')
             
         return user
+    
+    def get_by_username(self, username: str) -> User:
+        return User.get(User.username == username)
 
     def deactivate(self, user: User) -> None:
         '''
@@ -116,7 +121,7 @@ class StoryService:
             list[Section]: List of sections in chronological order
         '''
         logger.debug(f'Retrieving history for story: {story.id}')
-        return story.sections_history()
+        return story.sections_histories()
     
     def as_messages(self, story: Story) -> list[dict]:
         '''
@@ -509,6 +514,161 @@ class StoryService:
         return stories_count, section_count, user.charge
 
 
+class ChatService:
+    '''
+    Service for handling user chat interactions, managing sessions, and processing messages with the LLM.
+    '''
+    
+    async def __get_session_history(self, session: Session) -> list[Chat]:
+        '''
+        Get the chat history for a session.
+        
+        Args:
+            session (Session): The session for which to retrieve the chat history
+            
+        Returns:
+            list[Chat]: The chat history
+        '''
+        logger.info(f'Getting session history for session {session.id}')
+        return session.chat_histories()
+    
+    async def __start_new_session(self, user: User) -> Session:
+        # deactivate previous session
+        '''
+        Starts a new session for the given user, deactivating any active session
+        
+        Args:
+            user (User): The user to start a new session for
+        
+        Returns:
+            Session: The newly created session
+        '''
+        logger.info(f'Starting new session for user {user.user_id}')
+        Session.update(active=False).where(Session.user == user).execute()
+        # create new session
+        session = Session.create(user=user)
+        chat = Chat.create(
+            session=session,
+            user=user,
+            text=CHAT_PROMPT,
+            is_system=True
+        )
+        return session
+
+    async def __get_current_session(self, user: User) -> Session | None:
+        '''
+        Retrieve the current active session for a user.
+
+        Args:
+            user (User): The user for whom to retrieve the active session.
+
+        Returns:
+            Session | None: The active session if it exists, otherwise None.
+        '''
+
+        logger.info(f'Getting current session for user {user.user_id}')
+        session = Session.select().where((Session.user == user) & (Session.active == True))
+        if session.exists():
+            return session.get()
+        return None
+
+    async def __chat_history_as_messages(self, session: Session) -> list[dict]:
+        '''
+        Convert chat history for a session to message format for the LLM.
+
+        Args:
+            session (Session): The session for which to retrieve the chat history.
+
+        Returns:
+            list[dict]: Messages in the format expected by the LLM.
+        '''
+        logger.info(f'Converting chat history for session {session.id}')
+        chat_histories = await self.__get_session_history(session)
+        messages = []
+        for index, message in enumerate(chat_histories):
+            if message.is_system:
+                messages.append({
+                    'role': 'assistant' if index else 'system',
+                    'content': message.text
+                })
+            else:
+                messages.append({
+                    'role': 'user',
+                    'content': message.text
+                })
+        return messages
+
+    async def deactivate_current_session(self, user: User) -> None:
+        '''
+        Deactivate the current active session for a user.
+
+        Args:
+            user (User): The user whose active session should be deactivated.
+        '''
+        logger.info(f'Deactivate active session for user {user.user_id}')
+        session = await self.__get_current_session(user)
+        if session:
+            session.active = False
+            session.save()
+
+    async def chat(self, user: User, text: str) -> AIChatResponse:
+        '''
+        Process a user's chat message and respond accordingly.
+
+        Args:
+            user (User): The user who sent the message
+            text (str): The message text
+
+        Returns:
+            AIChatResponse: The parsed AI response
+
+        Raises:
+            ValueError: If the message text is empty
+        '''
+        if not text:
+            raise ValueError('Text cannot be empty')
+        
+        logger.info(f'Processing chat message from user {user.user_id}')
+        session = await self.__get_current_session(user)
+        if not session:
+            session = await self.__start_new_session(user)
+        
+        messages = await self.__chat_history_as_messages(session)
+
+        if len(messages) > 30:
+            logger.warning(f'Session {session.id} has more than 30 messages!')
+
+        messages.append({
+            'role': 'user',
+            'content': text
+        })
+
+        logger.info(f'Sending messages to LLM for processing')
+        for i in range(3):
+            if i < 2:
+                content, input_tokens, output_tokens = await llm(messages)
+            else:
+                logger.warning('Using secondary model for LLM request')
+                content, input_tokens, output_tokens = await llm(messages, use_secondary_model=True)
+
+            ai_response = ai_chat_parser(content)
+            if ai_response:
+                break
+            else:
+                logger.warning('Failed to parse AI response, retrying...')
+        else:
+            raise FailedToGenerateChatException('Failed to generate chat response')
+
+        request_cost = calculate_token_price(input_tokens, output_tokens)
+        user.charge -= request_cost
+        user.save()
+        
+        Chat.create(session=session, user=user, text=text, is_system=False)
+        Chat.create(session=session, user=user, text=content, is_system=True)
+
+        return ai_response
+
+
 user_service = UserService()
 
 
@@ -550,7 +710,7 @@ def is_user_lock(user):
     return session[user]['is_processing']
 
 
-def asession_lock(func):
+def asession_lock(func, only_private=True):
     """Decorator that prevents concurrent execution of an async function 
     for the same user by implementing a session lock.
 
@@ -568,6 +728,10 @@ def asession_lock(func):
     """
     @wraps(func)
     async def wrapped(update, *args, **kwargs):
+        if only_private and update.message and update.message.chat.type != 'private':
+            logger.info(f'Ignored non-private message')
+            return None
+        
         user = user_service.get_user(
             update.effective_user.id,
             update.effective_user.username,
@@ -580,7 +744,28 @@ def asession_lock(func):
             return None
         
         user_lock(user)
-        await func(update, *args, **kwargs)
+        await func(update, *args, user=user, **kwargs)
         user_unlock(user)
 
+    return wrapped
+
+
+def ignore_non_private(func):
+    @wraps(func)
+    async def wrapped(update, *args, **kwargs):
+        """Decorator that ignores non-private messages.
+
+        Args:
+            update (Update): Telegram update object
+            *args: Arguments to be passed to the wrapped function
+            **kwargs: Keyword arguments to be passed to the wrapped function
+
+        Returns:
+            Any: The result of the wrapped function if the message is private,
+                otherwise None
+        """
+        if update.message and update.message.chat.type != 'private':
+            logger.info(f'Ignored non-private message')
+            return None
+        return await func(update, *args, **kwargs)
     return wrapped

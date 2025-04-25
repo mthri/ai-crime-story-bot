@@ -13,5 +13,8 @@ class UserNotActiveException(BaseException):
 class FailedToGenerateStoryException(BaseException):
     pass
 
+class FailedToGenerateChatException(BaseException):
+    pass
+
 class DailyStoryLimitExceededException(BaseException):
     pass

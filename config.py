@@ -16,16 +16,41 @@ IMAGE_SIZE = config('IMAGE_SIZE', default='1024x1024')
 IMAGE_PRICE = config('IMAGE_PRICE', cast=float, default=0.04)
 IMAGE_DIR = config('IMAGE_DIR', default='images')
 
-BALE_BOT_TOKEN = config('BALE_BOT_TOKEN')
+BOT_TOKEN = config('BOT_TOKEN')
 
 SPONSOR_TEXT = config('SPONSOR_TEXT')
 SPONSOR_URL = config('SPONSOR_URL')
 DONATE_URL = config('DONATE_URL')
+IN_APP_DONATE = config('IN_APP_DONATE', cast=bool, default=False)
 
-ADMINS_ID = config('ADMINS', cast=Csv(int), default='')
+ADMINS_ID = config('ADMINS_ID', cast=Csv(int), default='')
 ADMIN_USERNAME = config('ADMIN_USERNAME')
 LOG_CHANNEL_ID = config('LOG_CHANNEL_ID', cast=int, default=0)
 
 WALLET_TOKEN = config('WALLET_TOKEN')
 
+MAINTENANCE_MODE = config('MAINTENANCE_MODE', cast=bool, default=False)
+
 MAX_DAILY_STORY_CREATION = config('MAX_DAILY_STORY_CREATION', cast=int, default=2)
+
+USE_SQLITE = config('USE_SQLITE', cast=bool, default=False)
+if not USE_SQLITE:
+    PGDB_USER = config('PGDB_USER')
+    PGDB_PASS = config('PGDB_PASS')
+    PGDB_NAME = config('PGDB_NAME')
+    PGDB_HOST = config('PGDB_HOST', default='localhost')
+    PGDB_PORT = config('PGDB_PORT', cast=int, default=5432)
+
+USE_BALE_MESSENGER = config('USE_BALE_MESSENGER', cast=bool, default=False)
+if USE_BALE_MESSENGER:
+    BASE_URL = 'https://tapi.bale.ai/'
+else:
+    BASE_URL = 'https://api.telegram.org/bot'
+
+BOT_CHANNEL = config('BOT_CHANNEL')
+
+ERROR_MESSAGE_LINK = config('ERROR_MESSAGE_LINK')
+
+AI_CHAT = config('AI_CHAT', cast=bool, default=True)
+
+LOG_LLM = config('LOG_LLM', cast=bool, default=False)

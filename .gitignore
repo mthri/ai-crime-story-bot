@@ -8,3 +8,5 @@ ble.db-shm
 ble.db-wal
 bot.log
 images
+pgdata
+dump.json

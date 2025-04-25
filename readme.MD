@@ -50,6 +50,7 @@ BOT_TOKEN=your_telegram_bot_token
 SPONSOR_TEXT=Your Sponsor Text
 SPONSOR_URL=https://example.com
 DONATE_URL=https://example.com/donate
+IN_APP_DONATE=False
 
 # Admin Configuration
 ADMINS=111111,222222
@@ -78,6 +79,10 @@ BOT_CHANNEL=https://t.me/your_channel
 
 # Error Handling
 ERROR_MESSAGE_LINK=https://t.me/your_error_channel
+
+# AI Chat feature flag
+# Set to False to disable AI chat feature
+AI_CHAT=True
 ```
 
 ### Database Setup
