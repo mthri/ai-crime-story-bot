@@ -129,27 +129,27 @@ def import_db_from_json(path: str = 'dump.json'):
                 # Sections
                 section_data = []
                 for section in story['sections']:
-                    section_data.append({
-                        'id': section['id'],
-                        'story_id': s.id,
-                        'text': section['text'],
-                        'is_system': section['is_system'],
-                        'used': section['used'],
-                        'created_at': datetime.strptime(section['created_at'], "%Y-%m-%d %H:%M:%S.%f")
-                    })
+                    section_data.append(Section(
+                        id=section['id'],
+                        story=s.id,
+                        text=section['text'],
+                        is_system=section['is_system'],
+                        used=section['used'],
+                        created_at=section['created_at']
+                    ))
                 Section.bulk_create(section_data, batch_size=50)
 
         # Story scenarios
         scenarios = []
         for scenario in data['story_scenarios']:
-            scenarios.append({
-                'id': scenario['id'],
-                'story': scenario['story'],
-                'text': scenario['text'],
-                'is_system': scenario['is_system'],
-                'created_at': datetime.strptime(scenario['created_at'], "%Y-%m-%d %H:%M:%S.%f")
-            })
-        
+            scenarios.append(StoryScenario(
+                id=scenario['id'],
+                story_id=scenario['story_id'],
+                text=scenario['text'],
+                is_system=scenario['is_system'],
+                created_at=scenario['created_at']
+            ))
+
         # Insert story scenarios in batches
         StoryScenario.bulk_create(scenarios, batch_size=50)
 
