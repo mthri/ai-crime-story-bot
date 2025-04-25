@@ -77,7 +77,7 @@ class Story(BaseModel):
     def as_dict(self) -> dict:
         return {
             'id': self.id,
-            'user': self.user.user_id,
+            'user_id': self.user.user_id,
             'is_end': self.is_end,
             'created_at': str(self.created_at),
             'rate': self.rate
@@ -102,7 +102,7 @@ class StoryScenario(BaseModel):
     def as_dict(self) -> dict:
         return {
             'id': self.id,
-            'story': self.story.id if self.story else None,
+            'story_id': self.story.id if self.story else None,
             'text': self.text,
             'is_system': self.is_system,
             'created_at': str(self.created_at)
@@ -121,7 +121,7 @@ class Section(BaseModel):
     def as_dict(self) -> dict:
         return {
             'id': self.id,
-            'story': self.story.id,
+            'story_id': self.story.id,
             'text': self.text,
             'is_system': self.is_system,
             'used': self.used,
