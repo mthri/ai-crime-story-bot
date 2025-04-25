@@ -748,3 +748,24 @@ def asession_lock(func, only_private=True):
         user_unlock(user)
 
     return wrapped
+
+
+def ignore_non_private(func):
+    @wraps(func)
+    async def wrapped(update, *args, **kwargs):
+        """Decorator that ignores non-private messages.
+
+        Args:
+            update (Update): Telegram update object
+            *args: Arguments to be passed to the wrapped function
+            **kwargs: Keyword arguments to be passed to the wrapped function
+
+        Returns:
+            Any: The result of the wrapped function if the message is private,
+                otherwise None
+        """
+        if update.message and update.message.chat.type != 'private':
+            logger.info(f'Ignored non-private message')
+            return None
+        return await func(update, *args, **kwargs)
+    return wrapped
