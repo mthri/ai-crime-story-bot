@@ -131,7 +131,7 @@ def import_db_from_json(path: str = 'dump.json'):
                 for section in story['sections']:
                     section_data.append({
                         'id': section['id'],
-                        'story': s.id,
+                        'story_id': s.id,
                         'text': section['text'],
                         'is_system': section['is_system'],
                         'used': section['used'],
