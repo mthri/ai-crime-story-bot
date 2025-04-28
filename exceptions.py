@@ -18,3 +18,6 @@ class FailedToGenerateChatException(BaseException):
 
 class DailyStoryLimitExceededException(BaseException):
     pass
+
+class DailyChatLimitExceededException(BaseException):
+    pass

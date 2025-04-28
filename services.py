@@ -9,7 +9,7 @@ from utils import generate_crime_story_scenarios, story_parser, AIStoryResponse,
     calculate_token_price, ai_chat_parser, AIChatResponse, ChatCommand
 from core import llm, generate_image_from_prompt, generate_story_visual_prompt
 from prompts import STORY_PROMPT, CHAT_PROMPT
-from config import IMAGE_PRICE, MAX_DAILY_STORY_CREATION
+from config import IMAGE_PRICE, MAX_DAILY_STORY_CREATION, MAX_DAILY_CHAT_MESSAGE, MAX_SESSION_MESSAGES
 from exceptions import *
 
 
@@ -545,6 +545,17 @@ class ChatService:
         '''
         logger.info(f'Starting new session for user {user.user_id}')
         Session.update(active=False).where(Session.user == user).execute()
+        
+        query = Chat.select().where(
+            (Chat.user == user) &
+            (Chat.is_system == False) &
+            (Chat.created_at > datetime.now() - timedelta(hours=24))
+        )
+        # if freemium user has reached the maximum daily chat message limit
+        if  user.charge < 0.0 and query.count() >= MAX_DAILY_CHAT_MESSAGE:
+            logger.info(f'User {user.user_id} has reached the maximum daily chat message limit.')
+            raise DailyChatLimitExceededException(f'User {user.user_id} has reached the maximum daily chat message limit.')
+        
         # create new session
         session = Session.create(user=user)
         chat = Chat.create(
@@ -635,8 +646,8 @@ class ChatService:
         
         messages = await self.__chat_history_as_messages(session)
 
-        if len(messages) > 15:
-            logger.warning(f'Session {session.id} has more than 15 messages!, deactivating session')
+        if len(messages) > MAX_SESSION_MESSAGES:
+            logger.warning(f'Session {session.id} has more than {MAX_SESSION_MESSAGES} messages!, deactivating session')
             session.active = False
             session.save()
 

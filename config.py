@@ -32,6 +32,8 @@ WALLET_TOKEN = config('WALLET_TOKEN')
 MAINTENANCE_MODE = config('MAINTENANCE_MODE', cast=bool, default=False)
 
 MAX_DAILY_STORY_CREATION = config('MAX_DAILY_STORY_CREATION', cast=int, default=2)
+MAX_DAILY_CHAT_MESSAGE = config('MAX_DAILY_CHAT_MESSAGE', cast=int, default=20)
+MAX_SESSION_MESSAGES = config('MAX_SESSION_MESSAGES', cast=int, default=20)
 
 USE_SQLITE = config('USE_SQLITE', cast=bool, default=False)
 if not USE_SQLITE:

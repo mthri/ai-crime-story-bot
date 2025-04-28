@@ -30,12 +30,13 @@ from config import (
     BOT_CHANNEL,
     ERROR_MESSAGE_LINK,
     AI_CHAT,
-    IN_APP_DONATE
+    IN_APP_DONATE,
+    MAX_DAILY_CHAT_MESSAGE
 )
 from services import UserService, StoryService, AIStoryResponse, ChatService, user_unlock, asession_lock
 from models import User, Story, Section, StoryScenario
 from utils import replace_english_numbers_with_farsi, ChatCommand
-from exceptions import DailyStoryLimitExceededException, UserNotActiveException
+from exceptions import DailyStoryLimitExceededException, UserNotActiveException, DailyChatLimitExceededException
 from core import get_account_credit
 
 VERSION = '0.3.0-alpha'
@@ -775,17 +776,30 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE,
         )
 
 
-async def daily_limit_exception_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    text = f'''سلام عزیزم! 👋
+async def daily_limit_exception_message(update: Update, context: ContextTypes.DEFAULT_TYPE, is_story: bool = True) -> None:
+    sotry_text = f'''سلام عزیزم! 👋
 
 ما اینجا هستیم که رایگان برات داستان بسازیم! ✨ ولی هزینه‌ها زیاده! 😅💸 برای ادامه کار، {replace_english_numbers_with_farsi(MAX_DAILY_STORY_CREATION)} داستان در هر ۲۴ ساعت محدودیت داریم. 🤏
 
 اگه دوست داری همیشه با ما باشی، دستور /support رو ارسال کن! ❤️
 
 ممنون که درک می‌کنی! 🙏🔥'''
+    
+    chat_text = f'''سلام دوست خوبم! 👋
+
+چت‌هایی که با این ربات انجام میدی، برای راحت‌تر شدن کارت با سرویس‌هاست. 🤖
+به خاطر محدودیت منابع، بیشتر از {replace_english_numbers_with_farsi(MAX_DAILY_CHAT_MESSAGE)} چت تو هر ۲۴ ساعت نمی‌تونیم قبول کنیم. ⏳
+
+اگه دوست داری همیشه با ما باشی، دستور /support رو ارسال کن! ❤️
+
+ممنون که کنار مایی! 🙏✨
+'''
+
+
+
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=text,
+        text=sotry_text if is_story else chat_text,
     )
 
 
@@ -804,6 +818,11 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if isinstance(context.error, DailyStoryLimitExceededException):
         await daily_limit_exception_message(update, context)
         return None
+    
+    if isinstance(context.error, DailyChatLimitExceededException):
+        await daily_limit_exception_message(update, context, is_story=False)
+        return None
+
     elif isinstance(context.error, UserNotActiveException):
         try:
             await context.bot.send_message(
