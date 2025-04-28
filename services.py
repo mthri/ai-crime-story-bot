@@ -635,8 +635,10 @@ class ChatService:
         
         messages = await self.__chat_history_as_messages(session)
 
-        if len(messages) > 30:
-            logger.warning(f'Session {session.id} has more than 30 messages!')
+        if len(messages) > 15:
+            logger.warning(f'Session {session.id} has more than 15 messages!, deactivating session')
+            session.active = False
+            session.save()
 
         messages.append({
             'role': 'user',
