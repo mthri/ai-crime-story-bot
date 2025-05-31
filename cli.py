@@ -1,7 +1,7 @@
 import argparse
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, date, time
 
 from telegram import Bot
 from models import User, Story, StoryScenario, Section, LLMHistory, Session, Chat, db
@@ -30,6 +30,56 @@ def report() -> None:
     """
 
     print(report)
+
+def daily_activity_report() -> None:
+    """
+    Generates a report of new users and new stories created daily for the last 7 days.
+    """
+    today = date.today()
+    seven_days_ago_date = today - timedelta(days=6) # Inclusive of today, covering 7 distinct days
+
+    # Initialize dictionaries to store daily counts
+    # Keys are date objects
+    daily_new_users = {(seven_days_ago_date + timedelta(days=i)): 0 for i in range(7)}
+    daily_new_stories = {(seven_days_ago_date + timedelta(days=i)): 0 for i in range(7)}
+
+    # Define the start of the period for querying
+    # We need datetime objects for Peewee's DateTimeField comparison
+    start_datetime_period = datetime.combine(seven_days_ago_date, time.min)
+
+    # Fetch users created in the last 7 days
+    # User.created_at is a DateTimeField
+    users_in_period = User.select(User.user_id, User.created_at).where(User.created_at >= start_datetime_period)
+    for user in users_in_period:
+        creation_date = user.created_at.date() # Extract date part
+        if creation_date in daily_new_users: # Ensure it's within our target 7-day window
+            daily_new_users[creation_date] += 1
+
+    # Fetch stories created in the last 7 days
+    # Story.created_at is a DateTimeField
+    stories_in_period = Story.select(Story.id, Story.created_at).where(Story.created_at >= start_datetime_period)
+    for story in stories_in_period:
+        creation_date = story.created_at.date() # Extract date part
+        if creation_date in daily_new_stories: # Ensure it's within our target 7-day window
+            daily_new_stories[creation_date] += 1
+
+    # Prepare and print the report
+    report_lines = [
+        '\n📅 **Daily Activity Report (Last 7 Days)** 📅',
+        '-------------------------------------------',
+        '| Date       | New Users | New Stories |',
+        '|------------|-----------|-------------|'
+    ]
+
+    for i in range(7):
+        current_date = seven_days_ago_date + timedelta(days=i)
+        users_count = daily_new_users.get(current_date, 0)
+        stories_count = daily_new_stories.get(current_date, 0)
+        report_lines.append(f'| {current_date.strftime("%Y-%m-%d")} | {users_count:<9} | {stories_count:<11} |')
+
+    report_lines.append('-------------------------------------------')
+    report_lines.append('✅ Daily Activity Report Generated Successfully!')
+    print('\n'.join(report_lines))
 
 def export_db_as_json(path: str = 'dump.json'):
     '''Backup important data to a JSON file.
@@ -181,3 +231,5 @@ if __name__ == '__main__':
         import_db_from_json(args.path)
     elif args.command == 'report':
         report()
+    elif args.command == 'daily_report':
+        daily_activity_report()
