@@ -216,6 +216,7 @@ if __name__ == '__main__':
     subparsers = parser.add_subparsers(dest='command')
 
     report_parser = subparsers.add_parser('report', help='Generate a system report')
+    daily_report = subparsers.add_parser('daily_report', help='Generate a daily report')
 
     dump_parser = subparsers.add_parser('dump', help='Dump database to a JSON file')
     dump_parser.add_argument('--path', type=str, default='dump.json', help='Path to the output file')
